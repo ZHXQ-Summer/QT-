@@ -15,18 +15,19 @@ public:
 
     // Getter方法
     QString getUsername() const;
-    bool checkPassword(const QString& inputPw) const;
+    bool checkPassword(const QString& inputPw) const;//登陆时检查密码
 
     //行为方法
     void releasePost(ItemPost* p);//发布商品
     void deletePostr(ItemPost* p);//下架商品
-    void chat(chatroom* p);//加入聊天
+    void chat(User* p);//发起聊天，this是当前用户
     void addFvourite(ItemPost* p);//添加收藏
+    
 private:
     QString username;
     QString password;
     std::vector<ItemPost*> postPointer;//指向发布的商品
-    std::vector<chatroom*> historyChat;//历史聊天记录
+    std::vector<ChatRoom*> historyChat;//历史聊天记录
     std::vector<ItemPost*> myFavourite;//收藏
 
 
