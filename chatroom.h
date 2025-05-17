@@ -21,31 +21,16 @@ public:
     explicit ChatRoom(User* user1, User* user2, User* currentUser, QWidget *parent = nullptr);
     void addMessage(const QString& content, User* sender);//添加信息
     void loadHistory();//加载历史信息（也就是储存在本地的信息）
-    void notifyNewMessage(const ChatMessage& message);
-    void checkNewMessages();
-    bool hasUser(User* user) const { return user == user1 || user == user2; }//聊天室中是否包含某个用户
-    int getUnreadCount(User* user) const { 
-        return user == user1 ? unreadCount1 : unreadCount2;
-    }//获取指定用户的未读信息数量
-    void markAsRead(User* user) { 
-        if (user == user1) unreadCount1 = 0;
-        else if (user == user2) unreadCount2 = 0;
-        updateTitle();
-    }//标记指定用户的消息为已读
-    void markAsUnread(User* user) { 
-        if (user == user1) unreadCount1++;
-        else if (user == user2) unreadCount2++;
-        updateTitle();
-    }//标记指定用户的消息为未读
+    bool hasUser(User* user) const ;//聊天室中是否包含某个用户
+    int getUnreadCount(User* user) const;//获取指定用户的未读信息数量
+    void markAsRead(User* user); //标记指定用户的消息为已读
+    void markAsUnread(User* user);//标记指定用户的消息为未读
     void showEvent(QShowEvent* event) override;  // 使用showEvent替代show
 
 private slots:
     void sendMessage();
     void displayMessage(const ChatMessage& message);
     void saveHistory();
-    void showNotification(const QString& title, const QString& message);
-    void onFileChanged(const QString& path);
-    void onTimerTimeout();
 
 private:
     User* user1;
