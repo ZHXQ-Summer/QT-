@@ -21,8 +21,10 @@ public:
     void releasePost(ItemPost* p);//发布商品
     void deletePostr(ItemPost* p);//下架商品
     void chat(User* p);//发起聊天，this是当前用户
+    void receiveNewChat(User* p,ChatRoom* q);//接收到新聊天
+    void openHistoryChat(ChatRoom* p);//打开历史聊天
     void addFvourite(ItemPost* p);//添加收藏
-    
+
 private:
     QString username;
     QString password;
