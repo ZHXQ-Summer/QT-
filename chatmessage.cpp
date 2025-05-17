@@ -1,4 +1,4 @@
- #include "chatmessage.h"
+#include "chatmessage.h"
 #include <QJsonDocument>
 #include <QJsonArray>
 
