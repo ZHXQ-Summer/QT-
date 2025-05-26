@@ -89,11 +89,80 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->loginBtn, &QPushButton::clicked,this, &MainWindow::onLoginClicked);
     connect(ui->registerBtn, &QPushButton::clicked,this, &MainWindow::onRegisterClicked);
     connect(ui->exitBtn, &QPushButton::clicked,qApp, &QApplication::quit);
+    QPushButton {
+        background-color: #FFFFFF;
+        color: #555555;
+        border-radius: 6px;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        border: 1px solid #E0E0E0;
+        transition: all 0.2s ease;
+    }
+    QPushButton:hover {
+        background-color: #F8F8F8;
+        color: #333333;
+        border-color: #D0D0D0;
+    }
+    QPushButton:pressed {
+        background-color: #F0F0F0;
+        border-color: #C0C0C0;
+    }
+    QPushButton:focus {
+        outline: none;
+        border: 1px solid #7ED957;
+    }
+)");
+    ui->registerBtn->setStyleSheet(R"(
+    QPushButton {
+        background-color: #FFFFFF;
+        color: #555555;
+        border-radius: 6px;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        border: 1px solid #E0E0E0;
+        transition: all 0.2s ease;
+    }
+    QPushButton:hover {
+        background-color: #F5F9FF;
+        color: #3366CC;
+        border-color: #B3D1FF;
+    }
+    QPushButton:pressed {
+        background-color: #EBF2FF;
+    }
+)");
+    ui->exitBtn->setStyleSheet(R"(
+    QPushButton {
+        background-color: #FFFFFF;
+        color: #555555;
+        border-radius: 6px;
+        padding: 12px 24px;
+        font-size: 14px;
+        font-weight: 500;
+        border: 1px solid #E0E0E0;
+        transition: all 0.2s ease;
+    }
+    QPushButton:hover {
+        background-color: #FFF5F5;
+        color: #CC3333;
+        border-color: #FFB3B3;
+    }
+    QPushButton:pressed {
+        background-color: #FFEBEB;
+    }
+)");
 }
 
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+void MainWindow::paintEvent(QPaintEvent *event)
+{
+    QPainter painter(this);
+    painter.drawPixmap(0,0,width(),height(),QPixmap(":/w1.jpg"));
 }
 
 void MainWindow::onLoginClicked()
