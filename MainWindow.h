@@ -27,6 +27,7 @@ public:
     void switchPage(int index);
     QWidget* mine_create();
     QWidget* itempost_create();
+    void paintEvent(QPaintEvent * event);
 private slots:
     void onLoginClicked();
     void onRegisterClicked();
@@ -61,3 +62,4 @@ private:
     QWidget *page3;              // 页面3
 };
 #endif // MAINWINDOW_H
+
