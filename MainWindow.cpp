@@ -89,6 +89,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->loginBtn, &QPushButton::clicked,this, &MainWindow::onLoginClicked);
     connect(ui->registerBtn, &QPushButton::clicked,this, &MainWindow::onRegisterClicked);
     connect(ui->exitBtn, &QPushButton::clicked,qApp, &QApplication::quit);
+    ui->loginBtn->setStyleSheet(R"(
     QPushButton {
         background-color: #FFFFFF;
         color: #555555;
