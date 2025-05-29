@@ -111,7 +111,6 @@ void ChatRoom::loadHistory()
         displayMessage(message);
     }
 }
-
 void ChatRoom::saveHistory()
 {
     if (!ChatMessage::saveMessages(historyFilePath, messageHistory)) {
@@ -131,8 +130,14 @@ QString ChatRoom::getHistoryFilePath() const
     QString filename = QString("chat_history/%1_%2.json")
         .arg(user1->getUsername())
         .arg(user2->getUsername());
-    
-    return filename;
+    if(QFile::exists(filename)){
+        return filename;
+    }
+    else{
+        QString filename = QString("chat_history/%1_%2.json")
+        .arg(user2->getUsername())
+            .arg(user1->getUsername());
+        return filename;}
 }
 
 QString ChatRoom::getCurrentTime() const
@@ -156,4 +161,4 @@ int ChatRoom::getUnreadCount(User* user) const {
         return user == user1 ? unreadCount1 : unreadCount2;
     }//获取指定用户的未读信息数量
 
-bool ChatRoom::hasUser(User* user) const { return user == user1 || user == user2; }
+bool ChatRoom::hasUser(User* user) const { return user->getUserID() == user1->getUserID() || user->getUserID() == user2->getUserID(); }

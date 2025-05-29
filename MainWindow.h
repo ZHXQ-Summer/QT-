@@ -9,6 +9,7 @@
 #include<QLabel>
 #include<QRubberBand>
 #include<itempost.h>
+#include<chatroom.h>
 class User;
 namespace Ui {
 class MainWindow;
@@ -28,6 +29,11 @@ public:
     QWidget* mine_create();
     QWidget* itempost_create();
     void paintEvent(QPaintEvent * event);
+    void showAuthorInfo(const User& author);
+    void createChatRoom(User* targetuser);
+    void load_chat();
+    QWidget* createChatRoomCard(ChatRoom* room);
+    QWidget* createChatListWidget();
 private slots:
     void onLoginClicked();
     void onRegisterClicked();
@@ -37,6 +43,7 @@ private slots:
     void showPostEditor();
     void refreshItemPosts();
 private:
+    std::vector<ChatRoom*> activeChatRooms;
     void loadItemPosts(); // 用于重新加载数据
     QWidget* createItemPostList(const std::vector<ItemPost>& posts); // 创建商品列表视图
     QWidget* createSinglePost(const ItemPost& post);    // 创建单个商品卡片

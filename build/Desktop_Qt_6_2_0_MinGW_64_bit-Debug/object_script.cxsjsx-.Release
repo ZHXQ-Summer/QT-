@@ -6,10 +6,12 @@ release/RegisterDialog.o
 release/chatmessage.o
 release/chatroom.o
 release/global_itempost.o
+release/globalfunc.o
 release/globalusers.o
 release/itempost.o
 release/main.o
 release/user.o
+release/qrc_picture.o
 release/moc_CQlabel.o
 release/moc_EditDialog.o
 release/moc_LoginDialog.o

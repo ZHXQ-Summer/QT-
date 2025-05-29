@@ -15,6 +15,7 @@ void save_item();
 
 int main(int argc, char *argv[])
 {
+
     QApplication a(argc, argv);
     a.setQuitOnLastWindowClosed(false);
     loadUsers();

@@ -1,4 +1,5 @@
 #include <MainWindow.h>
+#include<stdio.h>
 #include "LoginDialog.h"
 #include "RegisterDialog.h"
 #include <QVBoxLayout>
@@ -160,6 +161,34 @@ MainWindow::~MainWindow()
 {
     delete ui;
 }
+void MainWindow::load_chat(){
+    for(auto user:users){
+        QString filename = QString("chat_history/%1_%2.json")
+        .arg(user.getUsername())
+            .arg(cur_user->getUsername());
+        if(QFile::exists(filename)){
+            // 创建新聊天室
+            User* other=new User(user);
+            ChatRoom* newRoom = new ChatRoom(const_cast<User *>(cur_user), other,const_cast<User *>(cur_user));
+            // 初始化设置
+            newRoom->loadHistory();
+            activeChatRooms.emplace_back(newRoom);
+            continue;
+        }
+        filename = QString("chat_history/%1_%2.json")
+                       .arg(cur_user->getUsername())
+                       .arg(user.getUsername());
+        if(QFile::exists(filename)){
+            // 创建新聊天室
+            User* other=new User(user);
+            ChatRoom* newRoom = new ChatRoom(const_cast<User *>(cur_user), other,const_cast<User *>(cur_user));
+            // 初始化设置
+            newRoom->loadHistory();
+            activeChatRooms.emplace_back(newRoom);
+            continue;
+        }
+    }
+}
 void MainWindow::paintEvent(QPaintEvent *event)
 {
     QPainter painter(this);
@@ -180,6 +209,7 @@ void MainWindow::onLoginClicked()
         }
         log=true;
         if(log){
+            load_chat();
             QMenuBar* menubar=this->menuBar();
             QMenu* menu1 = new QMenu("当前页面");
             menubar->addMenu(menu1);
@@ -233,10 +263,7 @@ void MainWindow::createPages() {
     page2 = itempost_create();
 
     // 页面3
-    page3 = new QWidget;
-    page3->setStyleSheet("background: #F5F5DC;");
-    QLabel *label3 = new QLabel("这是页面3", page3);
-    label3->setAlignment(Qt::AlignCenter);
+    page3 =createChatListWidget();
 
     // 添加页面到容器
     stackWidget->addWidget(page1);
@@ -265,6 +292,7 @@ QWidget* MainWindow::mine_create() {//主页创建
     // 左侧：头像区域（示例使用占位符）
     ClickedLabel *avatarLabel = new ClickedLabel;
     avatarLabel->setFixedSize(100, 100);
+    avatarLabel->setStyleSheet("QLabel{background-color:rgb(255,255,255);}");
     avatarLabel->setAlignment(Qt::AlignCenter);
     avatarLabel->setCursor(Qt::PointingHandCursor); // 设置手型光标
     connect(avatarLabel, &ClickedLabel::clicked, this, [this, avatarLabel]() {
@@ -655,98 +683,251 @@ QWidget* MainWindow::itempost_create() {
 }
 
 QWidget* MainWindow::createSinglePost(const ItemPost& post) {
-    // 创建卡片容器
     QWidget* card = new QWidget;
     card->setStyleSheet(R"(
         QWidget {
             background: white;
             border-radius: 12px;
-            padding: 20px;
+            padding: 16px;
+            margin: 8px 0;
         }
         QWidget:hover {
-            background: #F8F8F8;
+            background: #FCFCFC;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
         }
     )");
 
-    // 主布局
-    QHBoxLayout* layout = new QHBoxLayout(card);
-    layout->setContentsMargins(10, 10, 10, 10);
-    layout->setSpacing(20);
+    QHBoxLayout* mainLayout = new QHBoxLayout(card);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(20);
 
-    /* 图片区域 */
+    /* 图片区域 - 自适应宽高比 */
     QLabel* imageLabel = new QLabel;
-    QString mainImage = post.getMainImage().isEmpty() ?
-                            ":/default_item.png" : post.getMainImage();
+    QString mainImage = post.getImages().empty() ?
+                            ":/default_item.jpg" : post.getMainImage();
     QPixmap pixmap(mainImage);
-    pixmap = pixmap.scaled(200, 200, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    pixmap = pixmap.scaled(160, 160, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
     imageLabel->setPixmap(pixmap);
-    imageLabel->setFixedSize(200, 200);
-    imageLabel->setStyleSheet("border-radius: 8px;");
-    layout->addWidget(imageLabel);
+    imageLabel->setStyleSheet(R"(
+        QLabel {
+            border-radius: 8px;
+            background: #F0F0F0;
+            min-width: 160px;
+            max-width: 160px;
+            min-height: 160px;
+            max-height: 160px;
+        }
+        QLabel:hover {
+            background: #E8E8E8;
+        }
+    )");
+    imageLabel->setScaledContents(true);
+    mainLayout->addWidget(imageLabel);
 
     /* 信息区域 */
     QWidget* infoWidget = new QWidget;
     QVBoxLayout* infoLayout = new QVBoxLayout(infoWidget);
+    infoLayout->setContentsMargins(0, 0, 0, 0);
+    infoLayout->setSpacing(8);
 
-    // 标题和价格
-    ClickedLabel* titleLabel = new ClickedLabel(
-        QString("<a href='detail' style='text-decoration:none; color:#333;'>%1</a>")
-            .arg(post.getTitle())
-        );
-    titleLabel->setTextFormat(Qt::RichText);
-    titleLabel->setCursor(Qt::PointingHandCursor);
-    connect(titleLabel, &ClickedLabel::clicked, this, [this, post]{
-        showDetailPage(post);
-    });
+    // 标题和价格行
+    QWidget* titleRow = new QWidget;
+    QHBoxLayout* titleLayout = new QHBoxLayout(titleRow);
+    titleLayout->setContentsMargins(0, 0, 0, 0);
+
+    ClickedLabel* titleLabel = new ClickedLabel(post.getTitle());
+    titleLabel->setStyleSheet(R"(
+        font: 14px 'Microsoft YaHei';
+        color: #007BFF;
+        padding-right: 8px;
+        text-decoration: underline;
+        qproperty-alignment: AlignVCenter;
+    )");
+    titleLabel->setWordWrap(true);
 
     QLabel* priceLabel = new QLabel(QString("¥%1").arg(post.getPrice(), 0, 'f', 2));
     priceLabel->setStyleSheet(R"(
         font: bold 20px 'Microsoft YaHei';
         color: #FF4444;
-        margin-top: 8px;
+        min-width: 80px;
+        qproperty-alignment: AlignRight;
     )");
+
+    titleLayout->addWidget(titleLabel, 4);
+    titleLayout->addWidget(priceLabel, 1);
+    infoLayout->addWidget(titleRow);
+
+    // 描述文本（限制3行）
+    QLabel* descLabel = new QLabel(post.getDescription());
+    descLabel->setStyleSheet(R"(
+        font: 14px 'Microsoft YaHei';
+        color: #666666;
+        line-height: 1.4;
+        margin-top: 4px;
+    )");
+    descLabel->setWordWrap(true);
+    descLabel->setMaximumHeight(60); // 3行高度
+    infoLayout->addWidget(descLabel);
 
     // 标签流式布局
     QWidget* tagWidget = new QWidget;
     QHBoxLayout* tagLayout = new QHBoxLayout(tagWidget);
-    tagLayout->setContentsMargins(0, 10, 0, 0);
-    tagLayout->setSpacing(8);
+    tagLayout->setContentsMargins(0, 0, 0, 0);
+    tagLayout->setSpacing(6);
 
     for (const auto& tag : post.getFlags()) {
         QLabel* tagLabel = new QLabel(tag);
         tagLabel->setStyleSheet(R"(
-            background: #E8E8E8;
-            border-radius: 4px;
-            padding: 4px 8px;
+            background: #F0F0F0;
+            border-radius: 14px;
+            padding: 4px 12px;
             color: #666666;
             font: 12px 'Microsoft YaHei';
         )");
         tagLayout->addWidget(tagLabel);
     }
+    ClickedLabel* authorLabel = new ClickedLabel("@" + post.getOwner()->getUsername());
+    authorLabel->setStyleSheet(R"(
+        font: 14px 'Microsoft YaHei';
+        color: #007BFF;
+        padding-right: 8px;
+        text-decoration: underline;
+        qproperty-alignment: AlignVCenter;
+    )");
+    authorLabel->setCursor(Qt::PointingHandCursor);
+    authorLabel->setToolTip("查看作者信息");
+
+    // 在原有titleLayout中添加作者标签
+    titleLayout->addWidget(authorLabel);
+    titleLayout->addWidget(titleLabel, 4);
+    titleLayout->addWidget(priceLabel, 1);
+
+    // 连接作者标签点击信号
+    connect(authorLabel, &ClickedLabel::clicked, this, [this, post]{
+        showAuthorInfo(*post.getOwner());
+    });
     tagLayout->addStretch();
 
-    // 组装信息区域
-    QLabel* descLabel = new QLabel(post.getDescription());
-    descLabel->setStyleSheet(R"(
-    font: 14px 'Microsoft YaHei';
-    color: #666666;
-    margin-top: 8px;
-    margin-bottom: 12px;
-)");
-    descLabel->setWordWrap(true);  // 启用自动换行
-    descLabel->setFixedWidth(400); // 限制宽度确保换行效果
-
-    // 在infoLayout中的价格标签后添加
-    infoLayout->addWidget(titleLabel);
-    infoLayout->addWidget(priceLabel);
-    infoLayout->addWidget(descLabel);  // 新增描述
     infoLayout->addWidget(tagWidget);
     infoLayout->addStretch();
 
-    layout->addWidget(infoWidget, 1);  // 设置伸展因子为1
+    mainLayout->addWidget(infoWidget, 1);
+
+    // 交互效果
+    connect(titleLabel, &ClickedLabel::clicked, this, [this, post]{
+        showDetailPage(post);
+    });
 
     return card;
 }
+void MainWindow::showAuthorInfo(const User& author) {
+    QDialog dialog(this);
+    dialog.setWindowTitle("用户信息 - " + author.getUsername());
+    dialog.setMinimumSize(320, 280);
+
+    QVBoxLayout* mainLayout = new QVBoxLayout(&dialog);
+    mainLayout->setContentsMargins(20, 15, 20, 15);
+
+    // 头像区域
+    QHBoxLayout* avatarLayout = new QHBoxLayout;
+    QLabel* avatarLabel = new QLabel;
+    QString avatarPath = author.getAvatarPath().isEmpty() ?
+                             ":/default_avatar.png" : author.getAvatarPath();
+    QPixmap avatarPix = QPixmap(avatarPath)
+                            .scaled(64, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    avatarLabel->setPixmap(avatarPix);
+    avatarLabel->setStyleSheet(R"(
+        border-radius: 32px;
+        border: 2px solid #EEE;
+    )");
+    avatarLayout->addWidget(avatarLabel, 0, Qt::AlignHCenter);
+    mainLayout->addLayout(avatarLayout);
+
+    // 信息表格
+    QFormLayout* infoLayout = new QFormLayout;
+    infoLayout->setLabelAlignment(Qt::AlignRight);
+
+    // 用户名
+    QLabel* nameValue = new QLabel(author.getUsername());
+    nameValue->setStyleSheet("font-weight: bold; color: #333;");
+    infoLayout->addRow("用户名：", nameValue);
+
+    // 用户ID
+    QLabel* idValue = new QLabel(author.getUserID());
+    idValue->setStyleSheet("color: #666;");
+    infoLayout->addRow("用户ID：", idValue);
+
+    // 注册时间
+    QLabel* regTimeValue = new QLabel(author.getRegTime().toString("yyyy-MM-dd hh:mm"));
+    regTimeValue->setStyleSheet("color: #666;");
+    infoLayout->addRow("注册时间：", regTimeValue);
+
+    // 认证等级
+    QString authLevelStr = author.getAuthLevel() > 0 ? "认证用户" : "普通用户";
+    QLabel* authValue = new QLabel(authLevelStr);
+    authValue->setStyleSheet(author.getAuthLevel() > 0 ?
+                                 "color: #28a745;" : "color: #666;");
+    infoLayout->addRow("用户类型：", authValue);
+
+    // 邮箱（可选显示）
+    if(!author.getEmail().isEmpty()) {
+        QLabel* emailValue = new QLabel(author.getEmail());
+        emailValue->setStyleSheet("color: #007BFF;");
+        infoLayout->addRow("联系邮箱：", emailValue);
+    }
+
+    mainLayout->addLayout(infoLayout);
+    mainLayout->addStretch();
+
+    QPushButton* chatBtn = new QPushButton("发送私信");
+    chatBtn->setStyleSheet(R"(
+        QPushButton {
+            background: #28a745;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+        }
+        QPushButton:hover {
+            background: #218838;
+        }
+    )");
+
+    QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok);
+    buttons->addButton(chatBtn, QDialogButtonBox::ActionRole);
+    connect(chatBtn, &QPushButton::clicked, [this, &author, &dialog]{
+        dialog.accept();
+        createChatRoom(const_cast<User*>(&author)); // 实际项目中应避免const_cast
+    });
+
+    mainLayout->addWidget(buttons);
+    dialog.exec();
+}
+void MainWindow::createChatRoom(User* targetUser){
+    // 参数有效性检查
+    if (!targetUser || !cur_user) { // currentUser需要是MainWindow的成员变量
+        qWarning() << "Invalid user pointer";
+        return;
+    }
+
+    // 检查是否已有聊天窗口
+    for(ChatRoom* room : activeChatRooms) {
+        if((room->user1->getUserID() == cur_user->getUserID() && room->user2->getUserID() == targetUser->getUserID()) ||
+            (room->user2->getUserID() == cur_user->getUserID() && room->user1->getUserID() == targetUser->getUserID()))
+        {
+            room->show();
+            return;
+        }
+    }
+
+    // 创建新聊天室
+    ChatRoom* newRoom = new ChatRoom(const_cast<User *>(cur_user), targetUser,const_cast<User *>(cur_user));
+
+    // 初始化设置
+    newRoom->loadHistory();
+    activeChatRooms.emplace_back(newRoom);
+    newRoom->show();
+}
+
 void MainWindow::showDetailPage(const ItemPost& post){
     QDialog *detailDialog = new QDialog(this);
     detailDialog->setWindowTitle("商品详情");
@@ -780,7 +961,7 @@ QWidget* MainWindow::createDetailDialogContent(const ItemPost& post, QDialog* pa
     // 图片展示区域
     QLabel *imageLabel = new QLabel(content);
     QPixmap pixmap(post.getMainImage().isEmpty() ?
-                       ":/default_item.png" : post.getMainImage());
+                       ":/default_item.jpg" : post.getMainImage());
     pixmap = pixmap.scaled(600, 600, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     imageLabel->setPixmap(pixmap);
     imageLabel->setAlignment(Qt::AlignCenter);
@@ -932,9 +1113,6 @@ void MainWindow::showPostEditor() {
             newPost.addImage(path);
         }
         // 添加默认封面图
-        if(newPost.getImages().empty()) {
-            newPost.addImage(":/default_item.png");
-        }
         posts.push_back(newPost);
         editor.accept();
         refreshItemPosts();
@@ -963,4 +1141,148 @@ void MainWindow::refreshItemPosts() {
     save_item();
     createPages();
     switchPage(1);
+}
+QWidget* MainWindow::createChatRoomCard(ChatRoom* room) {
+    // 卡片容器
+    QWidget* card = new QWidget(this);
+    card->setStyleSheet(R"(
+    QWidget {
+        background: white;
+        border-radius: 8px;
+        padding: 12px;
+    }
+    QWidget:hover {
+        background: #F8F9FA;
+    }
+)");
+    card->setMinimumHeight(80);
+
+    // 主布局保持水平布局
+    QHBoxLayout* mainLayout = new QHBoxLayout(card);
+    mainLayout->setContentsMargins(8, 8, 8, 8);
+    mainLayout->setSpacing(12);
+
+    /* 头像区域（保持原样） */
+    QLabel* avatarLabel = new QLabel;
+    User* otherUser = room->getOtherUser(cur_user); // 获取对方用户
+    QPixmap avatar(otherUser->getAvatarPath().isEmpty() ?
+                       ":/default_item.jpg" : otherUser->getAvatarPath());
+    avatar = avatar.scaled(48, 48, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    avatarLabel->setPixmap(avatar);
+    avatarLabel->setStyleSheet(R"(
+        QLabel {
+            border-radius: 24px;
+            border: 1px solid #EEE;
+        }
+    )");
+    mainLayout->addWidget(avatarLabel);
+
+    /* 右侧信息区域 */
+    QWidget* rightArea = new QWidget;
+    QVBoxLayout* rightLayout = new QVBoxLayout(rightArea);
+    rightLayout->setContentsMargins(0, 0, 0, 0);
+    rightLayout->setSpacing(4);
+
+    // 顶部行（用户名 + 时间）
+    QWidget* topRow = new QWidget;
+    QHBoxLayout* topLayout = new QHBoxLayout(topRow);
+    topLayout->setContentsMargins(0, 0, 0, 0);
+    topLayout->setSpacing(8);
+
+    // 用户名标签（保持原样）
+    ClickedLabel* nameLabel = new ClickedLabel(otherUser->getUsername());
+    nameLabel->setStyleSheet(R"(
+        font: bold 14px 'Microsoft YaHei';
+        color: #333;
+    )");
+    topLayout->addWidget(nameLabel);
+
+    // 时间标签（新增弹性空间使其右对齐）
+    QWidget* timeSpacer = new QWidget;
+    timeSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    topLayout->addWidget(timeSpacer);
+
+    QLabel* timeLabel = new QLabel(room->getLastMessageTime().toString("hh:mm"));
+    timeLabel->setStyleSheet(R"(
+    font: 12px 'Microsoft YaHei';
+    color: #999;
+    padding-right: 4px;
+)");
+    topLayout->addWidget(timeLabel);
+
+    rightLayout->addWidget(topRow);
+
+    // 消息内容（保持原样但调整对齐）
+    QLabel* msgLabel = new QLabel(room->getLastMessageContent());
+    msgLabel->setStyleSheet(R"(
+    font: 13px 'Microsoft YaHei';
+    color: #666;
+    qproperty-elideMode: ElideRight;
+    padding-top: 2px;
+)");
+    msgLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    rightLayout->addWidget(msgLabel);
+
+    mainLayout->addWidget(rightArea, 1);
+
+    /* 未读标记调整到右上角 */
+    if(int unread = room->getUnreadCount(const_cast<User *>(cur_user))) {
+        QLabel* badge = new QLabel(QString::number(unread));
+        // 保持原有样式，仅修改布局
+        badge->setStyleSheet(R"(
+        background: #FF4444;
+        color: white;
+        min-width: 20px;
+        max-width: 20px;
+        min-height: 20px;
+        max-height: 20px;
+        border-radius: 10px;
+        font: bold 10px 'Microsoft YaHei';
+        qproperty-alignment: AlignCenter;
+    )");
+
+        // 使用覆盖布局定位
+        QHBoxLayout* badgeLayout = new QHBoxLayout(card);
+        badgeLayout->setContentsMargins(0, 4, 4, 0);
+        badgeLayout->addWidget(badge, 0, Qt::AlignTop | Qt::AlignRight);
+    }
+
+    // 点击事件处理
+    connect(nameLabel, &ClickedLabel::clicked, [this, room]{
+        room->markAsRead(const_cast<User *>(cur_user));
+        room->show();
+    });
+
+    // 设置鼠标手势
+    card->setCursor(Qt::PointingHandCursor);
+
+    return card;
+}
+
+// 创建聊天室列表容器
+QWidget* MainWindow::createChatListWidget() {
+    QWidget* container = new QWidget(this);
+    QVBoxLayout* mainLayout = new QVBoxLayout(container);
+
+    /* 滚动区域 */
+    QScrollArea* scrollArea = new QScrollArea;
+    QWidget* contentWidget = new QWidget;
+    QVBoxLayout* contentLayout = new QVBoxLayout(contentWidget);
+
+    // 添加间距
+    contentLayout->setContentsMargins(16, 16, 16, 16);
+    contentLayout->setSpacing(12);
+    // 动态生成聊天卡片
+    for(auto room: activeChatRooms) {
+        contentLayout->addWidget(createChatRoomCard(room));
+    }
+    contentLayout->addStretch();
+
+    // 设置滚动区域
+    scrollArea->setWidget(contentWidget);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setStyleSheet("QScrollArea { border: none; }");
+
+    mainLayout->addWidget(scrollArea);
+    return container;
 }

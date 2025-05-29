@@ -6,10 +6,12 @@ debug/RegisterDialog.o
 debug/chatmessage.o
 debug/chatroom.o
 debug/global_itempost.o
+debug/globalfunc.o
 debug/globalusers.o
 debug/itempost.o
 debug/main.o
 debug/user.o
+debug/qrc_picture.o
 debug/moc_CQlabel.o
 debug/moc_EditDialog.o
 debug/moc_LoginDialog.o
