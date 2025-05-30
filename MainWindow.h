@@ -34,6 +34,7 @@ public:
     void load_chat();
     QWidget* createChatRoomCard(ChatRoom* room);
     QWidget* createChatListWidget();
+    void highlightKeywords(QWidget* card, const QString& keyword);
 private slots:
     void onLoginClicked();
     void onRegisterClicked();

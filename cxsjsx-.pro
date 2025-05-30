@@ -32,6 +32,7 @@ HEADERS += \
     chatmessage.h \
     chatroom.h \
     global_itempost.h \
+    globalfunc.h \
     globalusers.h \
     itempost.h \
     user.h

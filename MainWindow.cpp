@@ -27,6 +27,7 @@
 #include<QFileInfo>
 #include<qstandardpaths.h>
 #include<QGroupBox>
+#include<globalfunc.h>
 void loadUsers() {
     QFile file("users.json");
     if (file.open(QIODevice::ReadOnly)) {
@@ -650,7 +651,49 @@ QWidget* MainWindow::itempost_create() {
         }
     )");
     connect(refreshBtn, &QPushButton::clicked, this, &MainWindow::refreshItemPosts);
+    QLineEdit* searchInput = new QLineEdit;
+    QPushButton* searchBtn = new QPushButton("🔍 搜索");
 
+    // 样式设置
+    searchInput->setStyleSheet(R"(
+        QLineEdit {
+            border: 2px solid #6C757D;
+            border-radius: 15px;
+            padding: 8px 16px;
+            font-family: 'Microsoft YaHei';
+            min-width: 300px;
+        }
+        QLineEdit:focus {
+            border-color: #007BFF;
+        }
+    )");
+
+    searchBtn->setStyleSheet(R"(
+        QPushButton {
+            background: #6C757D;
+            color: white;
+            border-radius: 15px;
+            padding: 10px 20px;
+            font: bold 14px 'Microsoft YaHei';
+            margin-left: 8px;
+        }
+        QPushButton:hover {
+            background: #5A6268;
+        }
+    )");
+
+    // 实时搜索防抖处理（500ms）
+    QTimer* searchTimer = new QTimer(this);
+    searchTimer->setSingleShot(true);
+
+    // 连接信号
+    connect(searchInput, &QLineEdit::textChanged, [=](){
+        searchTimer->start(500);
+    });
+
+    // 将搜索组件添加到工具栏布局
+    btnLayout->addWidget(searchInput);
+    btnLayout->addWidget(searchBtn);
     // 按钮布局
     btnLayout->addWidget(postBtn);
     btnLayout->addWidget(refreshBtn);
@@ -678,10 +721,58 @@ QWidget* MainWindow::itempost_create() {
     contentWidget->setStyleSheet("background: transparent;");
 
     mainLayout->addWidget(scrollArea);
+    auto performSearch = [=](const QString& keyword) {
+        // 清空原有内容
+        QLayoutItem* item;
+        while ((item = contentLayout->takeAt(0)) != nullptr) {
+            delete item->widget();
+            delete item;
+        }
 
+        // 获取搜索结果
+       auto results = findPost(keyword.trimmed());
+
+        // 显示结果
+        if(results.empty()) {
+            QLabel* tipLabel = new QLabel("未找到相关商品");
+            tipLabel->setStyleSheet("font: 16px 'Microsoft YaHei'; color: #666;");
+            tipLabel->setAlignment(Qt::AlignCenter);
+            contentLayout->addWidget(tipLabel);
+        } else {
+            for (auto post : results) {
+                QWidget* card = createSinglePost(*post);
+                highlightKeywords(card, keyword);
+                contentLayout->addWidget(card);
+                contentLayout->addSpacing(15);
+            }
+        }
+        contentLayout->addStretch();
+    };
+    connect(searchBtn, &QPushButton::clicked, [=](){ performSearch(searchInput->text()); });
+    connect(searchTimer, &QTimer::timeout, [=](){ performSearch(searchInput->text()); });
     return mainWidget;
 }
+void MainWindow::highlightKeywords(QWidget* card, const QString& keyword) {
+    if(keyword.isEmpty()) return;
 
+    // 高亮标题
+    QLabel* titleLabel = card->findChild<QLabel*>("titleLabel"); // 假设标题标签有objectName
+    if(titleLabel) {
+        QString text = titleLabel->text();
+        text.replace(keyword, QString("<b style='background:#FFF3CD;'>%1</b>").arg(keyword),
+                     Qt::CaseInsensitive);
+        titleLabel->setText(text);
+    }
+
+    // 高亮内容
+    QLabel* contentLabel = card->findChild<QLabel*>("contentLabel");
+    if(contentLabel) {
+        QString text = contentLabel->text();
+        text.replace(keyword, QString("<b style='background:#E7F5FF;'>%1</b>").arg(keyword),
+                     Qt::CaseInsensitive);
+        contentLabel->setText(text);
+    }
+}
 QWidget* MainWindow::createSinglePost(const ItemPost& post) {
     QWidget* card = new QWidget;
     card->setStyleSheet(R"(
@@ -952,58 +1043,77 @@ void MainWindow::showDetailPage(const ItemPost& post){
 QWidget* MainWindow::createDetailDialogContent(const ItemPost& post, QDialog* parent) {
     QWidget *content = new QWidget(parent);
     QVBoxLayout *mainLayout = new QVBoxLayout(content);
+    mainLayout->setContentsMargins(20, 15, 20, 15);
+    mainLayout->setSpacing(15);
 
-    // 返回按钮（改为关闭弹窗）
+    // 返回按钮布局优化
+    QHBoxLayout* headerLayout = new QHBoxLayout;
     QPushButton *backBtn = new QPushButton("← 返回", content);
-    backBtn->setStyleSheet("font: bold 14px; padding:8px;");
-    connect(backBtn, &QPushButton::clicked, parent, &QDialog::accept);
+    backBtn->setStyleSheet("font: bold 14px; padding:8px; margin-bottom:15px;");
+    headerLayout->addWidget(backBtn);
+    headerLayout->addStretch();
+    mainLayout->addLayout(headerLayout);
 
-    // 图片展示区域
+    // 图片展示区域（缩小尺寸）
     QLabel *imageLabel = new QLabel(content);
     QPixmap pixmap(post.getMainImage().isEmpty() ?
-                       ":/default_item.jpg" : post.getMainImage());
-    pixmap = pixmap.scaled(600, 600, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                 ":/default_item.jpg" : post.getMainImage());
+    pixmap = pixmap.scaled(400, 400, Qt::KeepAspectRatio, Qt::SmoothTransformation); // 缩小图片尺寸
     imageLabel->setPixmap(pixmap);
     imageLabel->setAlignment(Qt::AlignCenter);
+    imageLabel->setStyleSheet("margin-bottom: 20px;"); // 增加下边距
 
-    // 信息区域
+    // 信息区域重新布局
     QWidget *infoWidget = new QWidget(content);
     QVBoxLayout *infoLayout = new QVBoxLayout(infoWidget);
+    infoLayout->setContentsMargins(15, 0, 15, 0);
+    infoLayout->setSpacing(12);
 
-    QLabel *titleLabel = new QLabel(post.getTitle(), infoWidget);
+    // 标题与价格并排
+    QWidget* titleRow = new QWidget(infoWidget);
+    QHBoxLayout* titleLayout = new QHBoxLayout(titleRow);
+    titleLayout->setContentsMargins(0, 0, 0, 0);
+
+    QLabel *titleLabel = new QLabel(post.getTitle(), titleRow);
     titleLabel->setStyleSheet(R"(
         font: bold 24px 'Microsoft YaHei';
         color: #333333;
-        margin: 15px 0;
+        margin-right: 20px;
     )");
+    titleLabel->setWordWrap(true);
 
-    QLabel *priceLabel = new QLabel(QString("价格: ¥%1").arg(post.getPrice(), 0, 'f', 2), infoWidget);
+    QLabel *priceLabel = new QLabel(QString("¥%1").arg(post.getPrice(), 0, 'f', 2), titleRow);
     priceLabel->setStyleSheet(R"(
-        font: 20px 'Microsoft YaHei';
+        font: 28px 'Microsoft YaHei';
         color: #FF4444;
-        margin: 10px 0;
+        min-width: 120px;
+        qproperty-alignment: AlignRight;
     )");
 
+    titleLayout->addWidget(titleLabel, 3);
+    titleLayout->addWidget(priceLabel, 1);
+
+    // 描述区域优化
     QLabel *descLabel = new QLabel(post.getDescription(), infoWidget);
     descLabel->setWordWrap(true);
     descLabel->setStyleSheet(R"(
         font: 16px 'Microsoft YaHei';
         color: #666666;
-        line-height: 1.5;
-        margin: 10px 0;
+        line-height: 1.6;
+        margin-top: 10px;
+        padding-top: 15px;
+        border-top: 1px solid #EEE;
     )");
 
-    // 组装布局
-    infoLayout->addWidget(titleLabel);
-    infoLayout->addWidget(priceLabel);
+    infoLayout->addWidget(titleRow);
     infoLayout->addWidget(descLabel);
     infoLayout->addStretch();
 
-    mainLayout->addWidget(backBtn);
     mainLayout->addWidget(imageLabel);
     mainLayout->addWidget(infoWidget);
     mainLayout->addStretch();
 
+    connect(backBtn, &QPushButton::clicked, parent, &QDialog::accept);
     return content;
 }
 void MainWindow::showPostEditor() {
@@ -1080,7 +1190,7 @@ void MainWindow::showPostEditor() {
     priceEdit->setButtonSymbols(QAbstractSpinBox::NoButtons);
 
     // 配置标签提示
-    tagsEdit->setPlaceholderText("用逗号分隔标签，如：电子, 数码, 手机");
+    tagsEdit->setPlaceholderText("用空格分隔标签，如：电子 数码 手机");
 
     // 表单布局
     QFormLayout* formLayout = new QFormLayout(&editor);
@@ -1104,11 +1214,39 @@ void MainWindow::showPostEditor() {
         }
         return true;
     };
-
     connect(submitBtn, &QPushButton::clicked, [&]{
         if(!validateInput()) return;
+        // 处理标签输入（新增逻辑）
+        QString tagsInput = tagsEdit->text();
+        std::vector<QString> parsedTags;
+        if(!tagsInput.isEmpty()) {
+            // 支持逗号和中文顿号分割
+            qWarning()<<tagsInput;
+            QStringList rawTags = tagsInput.split(" ");
 
-        ItemPost newPost(titleEdit->text(),contentEdit->toPlainText(),priceEdit->value(),cur_user);
+            foreach(const QString& rawTag, rawTags) {
+                QString processedTag = rawTag.trimmed()
+                .replace(" ", "")       // 移除内部空格
+                    .replace("#", "")       // 过滤特殊字符
+                    .left(15);              // 长度限制
+
+                // 有效性检查 + 去重
+                if(!processedTag.isEmpty()) {
+                    parsedTags.push_back(processedTag);
+                }
+            }
+        }
+
+        // 空值处理优化
+        if(parsedTags.empty()) {
+            parsedTags.push_back("未分类");
+        }
+
+        // 限制最大标签数
+        if(parsedTags.size() > 5) {
+            parsedTags.resize(5);
+        }
+        ItemPost newPost(titleEdit->text(),contentEdit->toPlainText(),priceEdit->value(),cur_user,parsedTags);
         for(const auto& path : imagePaths) {
             newPost.addImage(path);
         }
