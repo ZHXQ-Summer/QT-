@@ -50,6 +50,19 @@ QJsonObject User::toJson() const
     }
     json["favorites"] = favoritesArray;
     
+    // 新增：序列化评分数据
+    QJsonObject ratingsObj;
+    for (auto it = ratings.begin(); it != ratings.end(); ++it) {
+        ratingsObj[it.key()] = it.value();
+    }
+    json["ratings"] = ratingsObj;
+    
+    QJsonObject commentsObj;
+    for (auto it = comments.begin(); it != comments.end(); ++it) {
+        commentsObj[it.key()] = it.value();
+    }
+    json["comments"] = commentsObj;
+    
     return json;
 }
 
@@ -67,6 +80,7 @@ User User::fromJson(const QJsonObject& json)
     user.regTime = QDateTime::fromString(json["regTime"].toString(), Qt::ISODate);
     user.password = json["password"].toString();
     user.avatarPath=json["avatarpath"].toString();
+    
     // 反序列化发布的商品
     QJsonArray postsArray = json["posts"].toArray();
     for (const auto& postJson : postsArray) {
@@ -83,6 +97,17 @@ User User::fromJson(const QJsonObject& json)
             ItemPost* favorite = new ItemPost(ItemPost::fromJson(favoriteJson.toObject()));
             user.myFavourite.push_back(favorite);
         }
+    }
+    
+    // 新增：反序列化评分数据
+    QJsonObject ratingsObj = json["ratings"].toObject();
+    for (auto it = ratingsObj.begin(); it != ratingsObj.end(); ++it) {
+        user.ratings[it.key()] = it.value().toInt();
+    }
+    
+    QJsonObject commentsObj = json["comments"].toObject();
+    for (auto it = commentsObj.begin(); it != commentsObj.end(); ++it) {
+        user.comments[it.key()] = it.value().toString();
     }
     
     return user;
@@ -197,3 +222,54 @@ void User::openHistoryChat(ChatRoom* p)
     }
 }
 
+int User::getpostcount() const
+{
+    return postPointer.size();
+}
+
+// 新增：评分系统方法实现
+void User::addRating(const QString& raterID, int rating, const QString& comment)
+{
+    // 限制评分范围在1-5之间
+    rating = qBound(1, rating, 5);
+    
+    // 更新或添加评分
+    ratings[raterID] = rating;
+    comments[raterID] = comment;
+}
+
+double User::getAverageRating() const
+{
+    if (ratings.isEmpty()) {
+        return 0.0;
+    }
+    
+    int totalRating = 0;
+    for (auto it = ratings.begin(); it != ratings.end(); ++it) {
+        totalRating += it.value();
+    }
+    
+    return static_cast<double>(totalRating) / ratings.size();
+}
+
+int User::getRatingCount() const
+{
+    return ratings.size();
+}
+
+QString User::getRatingLevel() const
+{
+    double avgRating = getAverageRating();
+    
+    if (avgRating >= 4.5) return "⭐⭐⭐⭐⭐ 优秀";
+    else if (avgRating >= 4.0) return "⭐⭐⭐⭐ 良好";
+    else if (avgRating >= 3.0) return "⭐⭐⭐ 一般";
+    else if (avgRating >= 2.0) return "⭐⭐ 较差";
+    else if (avgRating >= 1.0) return "⭐ 很差";
+    else return "暂无评分";
+}
+
+bool User::hasRatedBy(const QString& raterID) const
+{
+    return ratings.contains(raterID);
+}

@@ -14,6 +14,7 @@ SOURCES += \
     LoginDialog.cpp \
     MainWindow.cpp \
     RegisterDialog.cpp \
+    RatingDialog.cpp \
     chatmessage.cpp \
     chatroom.cpp \
     global_itempost.cpp \
@@ -29,6 +30,7 @@ HEADERS += \
     LoginDialog.h \
     MainWindow.h \
     RegisterDialog.h \
+    RatingDialog.h \
     chatmessage.h \
     chatroom.h \
     global_itempost.h \

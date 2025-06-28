@@ -41,7 +41,6 @@ public:
     void clearFlags() { flags.clear(); }
     //清空标签
 
-
     //与图片有关的方法
     void addImage(const QString& imagePath) { images.push_back(imagePath); }
     //添加图片
@@ -52,6 +51,13 @@ public:
     void setMainImage(const QString& imagePath);
     //设置主图片（将图片移到第一张）
 
+    // 新增：收藏相关功能
+    void addToFavorites(const User* user);
+    void removeFromFavorites(const User* user);
+    bool isFavoritedBy(const User* user) const;
+    int getFavoriteCount() const { return favoritedBy.size(); }
+    const std::vector<QString>& getFavoritedBy() const { return favoritedBy; }
+
 private:
     QString title;
     QString description;
@@ -60,5 +66,8 @@ private:
     QDateTime postTime;
     std::vector<QString> flags;
     std::vector<QString> images;  // 存储图片路径
+    
+    // 新增：收藏功能相关
+    std::vector<QString> favoritedBy;  // 收藏此商品的用户ID列表
 };
 #endif // ITEMPOST_H

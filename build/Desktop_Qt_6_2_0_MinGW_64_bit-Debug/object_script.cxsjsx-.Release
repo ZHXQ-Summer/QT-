@@ -3,6 +3,7 @@ release/EditDialog.o
 release/LoginDialog.o
 release/MainWindow.o
 release/RegisterDialog.o
+release/RatingDialog.o
 release/chatmessage.o
 release/chatroom.o
 release/global_itempost.o
@@ -17,4 +18,5 @@ release/moc_EditDialog.o
 release/moc_LoginDialog.o
 release/moc_MainWindow.o
 release/moc_RegisterDialog.o
+release/moc_RatingDialog.o
 release/moc_chatroom.o

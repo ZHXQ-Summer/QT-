@@ -3,6 +3,7 @@ debug/EditDialog.o
 debug/LoginDialog.o
 debug/MainWindow.o
 debug/RegisterDialog.o
+debug/RatingDialog.o
 debug/chatmessage.o
 debug/chatroom.o
 debug/global_itempost.o
@@ -17,4 +18,5 @@ debug/moc_EditDialog.o
 debug/moc_LoginDialog.o
 debug/moc_MainWindow.o
 debug/moc_RegisterDialog.o
+debug/moc_RatingDialog.o
 debug/moc_chatroom.o

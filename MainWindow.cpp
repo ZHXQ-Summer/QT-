@@ -20,7 +20,7 @@
 #include<QScrollArea>
 #include<global_itempost.h>
 #include<qtextedit.h>
-#include<QDoubleSpinBox>
+#include <QDoubleSpinBox>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -28,6 +28,9 @@
 #include<qstandardpaths.h>
 #include<QGroupBox>
 #include<globalfunc.h>
+#include <QList>
+#include "RatingDialog.h"
+
 void loadUsers() {
     QFile file("users.json");
     if (file.open(QIODevice::ReadOnly)) {
@@ -171,8 +174,9 @@ void MainWindow::load_chat(){
             // 创建新聊天室
             User* other=new User(user);
             ChatRoom* newRoom = new ChatRoom(const_cast<User *>(cur_user), other,const_cast<User *>(cur_user));
-            // 初始化设置
-            newRoom->loadHistory();
+            // 构造函数中已经处理了loadHistory和loadUnreadState
+            // 连接未读消息数量变化信号
+            connect(newRoom, &ChatRoom::unreadCountChanged, this, &MainWindow::updateUnreadMessageDisplay);
             activeChatRooms.emplace_back(newRoom);
             continue;
         }
@@ -183,8 +187,9 @@ void MainWindow::load_chat(){
             // 创建新聊天室
             User* other=new User(user);
             ChatRoom* newRoom = new ChatRoom(const_cast<User *>(cur_user), other,const_cast<User *>(cur_user));
-            // 初始化设置
-            newRoom->loadHistory();
+            // 构造函数中已经处理了loadHistory和loadUnreadState
+            // 连接未读消息数量变化信号
+            connect(newRoom, &ChatRoom::unreadCountChanged, this, &MainWindow::updateUnreadMessageDisplay);
             activeChatRooms.emplace_back(newRoom);
             continue;
         }
@@ -211,29 +216,112 @@ void MainWindow::onLoginClicked()
         log=true;
         if(log){
             load_chat();
-            QMenuBar* menubar=this->menuBar();
-            QMenu* menu1 = new QMenu("当前页面");
-            menubar->addMenu(menu1);
+
+            // 创建菜单栏
+            QMenuBar* menubar = this->menuBar();
+            menubar->setStyleSheet(R"(
+                QMenuBar {
+                    background: #FFFFFF;
+                    border-bottom: 1px solid #E0E0E0;
+                    padding: 5px;
+                }
+                QMenuBar::item {
+                    padding: 8px 16px;
+                    margin: 0 2px;
+                    border-radius: 4px;
+                    color: #333333;
+                }
+                QMenuBar::item:selected {
+                    background: #F0F0F0;
+                }
+                QMenuBar::item:pressed {
+                    background: #E0E0E0;
+                }
+            )");
+
+            // 创建导航菜单
+            QMenu* navMenu = new QMenu("导航菜单");
+            navMenu->setStyleSheet(R"(
+                QMenu {
+                    background: white;
+                    border: 1px solid #E0E0E0;
+                    border-radius: 8px;
+                    padding: 5px;
+                }
+                QMenu::item {
+                    padding: 8px 20px;
+                    border-radius: 4px;
+                    margin: 2px 5px;
+                    color: #333333;
+                    font: 14px 'Microsoft YaHei';
+                }
+                QMenu::item:selected {
+                    background: #F0F0F0;
+                }
+                QMenu::item:pressed {
+                    background: #E0E0E0;
+                }
+                QMenu::separator {
+                    height: 1px;
+                    background: #E0E0E0;
+                    margin: 5px 10px;
+                }
+            )");
+
+            // 创建页面切换按钮
+            QAction *page1Action = new QAction("👤 我的账号", this);
+            QAction *page2Action = new QAction("🏠 主页", this);
+            QAction *page3Action = new QAction("💬 私信", this);
+
+            // 连接信号
+            connect(page1Action, &QAction::triggered, [this](){
+                switchPage(0);
+                statusBar()->showMessage("已切换到个人主页", 2000);
+            });
+            connect(page2Action, &QAction::triggered, [this](){
+                switchPage(1);
+                statusBar()->showMessage("已切换到商品主页", 2000);
+            });
+            connect(page3Action, &QAction::triggered, [this](){
+                switchPage(2);
+                statusBar()->showMessage("已切换到私信页面", 2000);
+            });
+
+            // 添加按钮到菜单
+            navMenu->addAction(page1Action);
+            navMenu->addSeparator();
+            navMenu->addAction(page2Action);
+            navMenu->addSeparator();
+            navMenu->addAction(page3Action);
+
+            // 添加菜单到菜单栏
+            menubar->addMenu(navMenu);
+
+            // 创建状态栏
+            statusBar()->setStyleSheet(R"(
+                QStatusBar {
+                    background: #F8F9FA;
+                    color: #666666;
+                    border-top: 1px solid #E0E0E0;
+                    padding: 5px;
+                }
+            )");
+
+            // 设置主窗口
             stackWidget = new QStackedWidget;
-            setCentralWidget(stackWidget);  // 设为中央部件
-            createPages();  // 创建所有页面
-            QAction *page1Action = new QAction("我的账号", this);
-            QAction *page2Action = new QAction("主页", this);
-            QAction *page3Action = new QAction("私信", this);
-            connect(page1Action, &QAction::triggered, [this](){ switchPage(0); });
-            connect(page2Action, &QAction::triggered, [this](){ switchPage(1); });
-            connect(page3Action, &QAction::triggered, [this](){ switchPage(2); });
-            menu1->addAction(page1Action);
-            menu1->addAction(page2Action);
-            menu1->addAction(page3Action);
-            setWindowTitle("欢迎"+cur_user->getUsername()+"!");
+            setCentralWidget(stackWidget);
+            createPages();
+
+            // 设置窗口标题
+            setWindowTitle("欢迎 " + cur_user->getUsername() + "!");
+        }
     }
-}
 }
 void MainWindow::onRegisterClicked()
 {
     RegisterDialog dlg(this);
     dlg.exec();
+    saveUsers();
 }
 void MainWindow::edit()
 {
@@ -255,7 +343,7 @@ void MainWindow::createPages() {
             delete widget;
         }}
     else{
-                    stackWidget = new QStackedWidget;
+        stackWidget = new QStackedWidget;
     }
     // 页面1（带背景色方便区分）
     page1 = mine_create();
@@ -277,152 +365,292 @@ void MainWindow::switchPage(int index) {
         statusBar()->showMessage(QString("已切换到页面 %1").arg(index + 1), 2000);
     }
 }
-QWidget* MainWindow::mine_create() {//主页创建
+QWidget* MainWindow::mine_create() {
     QWidget *userInfoPage = new QWidget;
+    userInfoPage->setStyleSheet(R"(
+        QWidget {
+            background: #F8F9FA;
+            font-family: 'Microsoft YaHei';
+        }
+    )");
 
     // 整体垂直布局
     QVBoxLayout *mainLayout = new QVBoxLayout(userInfoPage);
-    mainLayout->setContentsMargins(30, 20, 30, 20); // 设置边距
-    mainLayout->setSpacing(25); // 设置间距
+    mainLayout->setContentsMargins(40, 30, 40, 30);
+    mainLayout->setSpacing(30);
 
+    // 顶部卡片 - 基本信息
+    QWidget *cardWidget = new QWidget;
+    cardWidget->setStyleSheet(R"(
+        QWidget {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+        }
+        QWidget:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+    )");
 
-    QWidget *basicInfoWidget = new QWidget;
-    QHBoxLayout *basicLayout = new QHBoxLayout(basicInfoWidget);
-    basicLayout->setSpacing(20);
+    QHBoxLayout *cardLayout = new QHBoxLayout(cardWidget);
+    cardLayout->setContentsMargins(20, 20, 20, 20);
+    cardLayout->setSpacing(30);
 
-    // 左侧：头像区域（示例使用占位符）
+    // 左侧：头像区域
     ClickedLabel *avatarLabel = new ClickedLabel;
-    avatarLabel->setFixedSize(100, 100);
-    avatarLabel->setStyleSheet("QLabel{background-color:rgb(255,255,255);}");
-    avatarLabel->setAlignment(Qt::AlignCenter);
-    avatarLabel->setCursor(Qt::PointingHandCursor); // 设置手型光标
+    avatarLabel->setFixedSize(120, 120);
+    avatarLabel->setCursor(Qt::PointingHandCursor);
+    avatarLabel->setStyleSheet(R"(
+        QLabel {
+            background: white;
+            border-radius: 60px;
+            border: 3px solid #FF69B4;
+            padding: 2px;
+        }
+        QLabel:hover {
+            border-color: #FF1493;
+            background: #FFF0F5;
+        }
+    )");
     connect(avatarLabel, &ClickedLabel::clicked, this, [this, avatarLabel]() {
         handleAvatarUpload(avatarLabel);
     });
-    // 初始化头像显示
-    updateAvatarDisplay(avatarLabel); // 新增头像更新函数
+    updateAvatarDisplay(avatarLabel);
 
-    // 设置样式和点击事件
-    avatarLabel->setStyleSheet(
-        "background: #FFFFFF;"
-        "border-radius: 50px;"
-        "border: 2px solid #FF69B4;"
-        "QLabel:hover { border-color: #FF1493; }" // 悬停效果
-        );
-
-
-    // 右侧：基本信息
+    // 右侧：用户信息
     QWidget *infoWidget = new QWidget;
     QVBoxLayout *infoLayout = new QVBoxLayout(infoWidget);
-    infoLayout->setSpacing(8);
+    infoLayout->setContentsMargins(0, 0, 0, 0);
+    infoLayout->setSpacing(12);
 
-    // 用户名（突出显示）
+    // 用户名和编辑按钮行
+    QWidget *nameRow = new QWidget;
+    QHBoxLayout *nameLayout = new QHBoxLayout(nameRow);
+    nameLayout->setContentsMargins(0, 0, 0, 0);
+
     QLabel *nameLabel = new QLabel(cur_user->getUsername());
-    nameLabel->setStyleSheet(
-        "font: bold 24px 'Microsoft YaHei';"
-        "color: #FF1493;"
-        );
+    nameLabel->setStyleSheet(R"(
+        font: bold 28px 'Microsoft YaHei';
+        color: #333333;
+    )");
 
-    // 用户ID
+    QPushButton *editProfileBtn = new QPushButton("编辑资料");
+    editProfileBtn->setFixedSize(100, 36);
+    editProfileBtn->setStyleSheet(R"(
+        QPushButton {
+            background: #FF69B4;
+            color: white;
+            border-radius: 18px;
+            font: bold 14px 'Microsoft YaHei';
+            padding: 8px 16px;
+        }
+        QPushButton:hover {
+            background: #FF1493;
+        }
+        QPushButton:pressed {
+            background: #FF69B4;
+        }
+    )");
+    connect(editProfileBtn, &QPushButton::clicked, this, &MainWindow::edit);
+
+    nameLayout->addWidget(nameLabel);
+    nameLayout->addStretch();
+    nameLayout->addWidget(editProfileBtn);
+
+    // 用户ID和注册时间
     QLabel *idLabel = new QLabel(QString("ID: %1").arg(cur_user->getUserID()));
-    idLabel->setStyleSheet("font: 14px; color: #666;");
+    idLabel->setStyleSheet(R"(
+        font: 14px 'Microsoft YaHei';
+        color: #666666;
+        padding: 4px 0;
+    )");
 
-    // 注册时间
     QLabel *regTimeLabel = new QLabel(
         QString("注册时间: %1").arg(
             cur_user->getRegTime().toString("yyyy-MM-dd hh:mm:ss")
             )
         );
-    regTimeLabel->setStyleSheet("font: 14px; color: #888;");
+    regTimeLabel->setStyleSheet(R"(
+        font: 14px 'Microsoft YaHei';
+        color: #888888;
+        padding: 4px 0;
+    )");
 
-    // 组装基本信息
-    infoLayout->addWidget(nameLabel);
+    infoLayout->addWidget(nameRow);
     infoLayout->addWidget(idLabel);
     infoLayout->addWidget(regTimeLabel);
     infoLayout->addStretch();
-    //编辑
-    QWidget *actionWidget = new QWidget;
-    QHBoxLayout *actionLayout = new QHBoxLayout(actionWidget);
-    actionLayout->setContentsMargins(0, 10, 0, 0);
 
-    QPushButton *editProfileBtn = new QPushButton("编辑资料");
-    editProfileBtn->setFixedSize(100, 30);
-    editProfileBtn->setStyleSheet(
-        "QPushButton {"
-        "  background: #FF69B4;"
-        "  color: white;"
-        "  border-radius: 5px;"
-        "}"
-        "QPushButton:hover { background: #FF1493; }"
-        );
-    actionLayout->addWidget(editProfileBtn);
-    actionLayout->addStretch();
-    connect(editProfileBtn, &QPushButton::clicked,this, &MainWindow::edit);
-    // ================= 修改布局结构 =================
-    basicLayout->addWidget(avatarLabel);
-    basicLayout->addWidget(infoWidget);
-    basicLayout->addWidget(actionWidget);
+    cardLayout->addWidget(avatarLabel);
+    cardLayout->addWidget(infoWidget, 1);
 
-    // ================= 详细信息区域 =================
-    QWidget *detailWidget = new QWidget;
-    QFormLayout *formLayout = new QFormLayout(detailWidget);
-    formLayout->setRowWrapPolicy(QFormLayout::WrapAllRows);
-    formLayout->setLabelAlignment(Qt::AlignLeft);
-    formLayout->setContentsMargins(10, 10, 10, 10);
-    formLayout->setSpacing(15);
+    // 统计信息卡片
+    QWidget *statsCard = new QWidget;
+    statsCard->setStyleSheet(R"(
+        QWidget {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+        }
+    )");
 
-    // 邮箱信息
-    QLabel *emailTitle = new QLabel("电子邮箱:");
-    QLabel *emailContent = new QLabel(cur_user->getEmail());
-    emailContent->setStyleSheet("color: #333;");
-    formLayout->addRow(emailTitle, emailContent);
+    QHBoxLayout *statsLayout = new QHBoxLayout(statsCard);
+    statsLayout->setContentsMargins(20, 20, 20, 20);
+    statsLayout->setSpacing(30);
 
-    // 权限等级
-    QString authLevel = "";
-    switch(cur_user->getAuthLevel()) {
-    case 0: authLevel = "普通用户"; break;
-    case 1: authLevel = "VIP用户"; break;
-    case 2: authLevel = "管理员"; break;
+    // 统计项
+    auto createStatItem = [](const QString& title, const QString& value) -> QWidget* {
+        QWidget *item = new QWidget;
+        QVBoxLayout *layout = new QVBoxLayout(item);
+        layout->setSpacing(8);
+
+        QLabel *valueLabel = new QLabel(value);
+        valueLabel->setStyleSheet(R"(
+            font: bold 24px 'Microsoft YaHei';
+            color: #333333;
+        )");
+        valueLabel->setAlignment(Qt::AlignCenter);
+
+        QLabel *titleLabel = new QLabel(title);
+        titleLabel->setStyleSheet(R"(
+            font: 14px 'Microsoft YaHei';
+            color: #666666;
+        )");
+        titleLabel->setAlignment(Qt::AlignCenter);
+
+        layout->addWidget(valueLabel);
+        layout->addWidget(titleLabel);
+        return item;
+    };
+
+    // 创建发布商品统计项
+    QPushButton* postCountWidget = new QPushButton("发布商品");
+    postCountWidget->setStyleSheet(R"(
+        QPushButton {
+            background: white;
+            border-radius: 8px;
+            padding: 24px 10px;
+            border: none;
+            font: bold 22px 'Microsoft YaHei';
+            color: #333333;
+        }
+        QPushButton:hover {
+            background: #F0F0F0;
+        }
+    )");
+    postCountWidget->setMinimumHeight(80);
+    connect(postCountWidget, &QPushButton::clicked, this, &MainWindow::showItemManagementDialog);
+    statsLayout->addWidget(postCountWidget);
+
+    // 新增：收藏商品统计项
+    QPushButton* favoriteCountWidget = new QPushButton("收藏商品");
+    favoriteCountWidget->setStyleSheet(R"(
+        QPushButton {
+            background: white;
+            border-radius: 8px;
+            padding: 24px 10px;
+            border: none;
+            font: bold 22px 'Microsoft YaHei';
+            color: #333333;
+        }
+        QPushButton:hover {
+            background: #F0F0F0;
+        }
+    )");
+    favoriteCountWidget->setMinimumHeight(80);
+    connect(favoriteCountWidget, &QPushButton::clicked, this, &MainWindow::showFavoritesDialog);
+    statsLayout->addWidget(favoriteCountWidget);
+
+    // 计算未读消息数量的函数
+    auto calculateUnreadMessages = [this]() -> int {
+        int totalUnreadMessages = 0;
+        for (auto room : activeChatRooms) {
+            totalUnreadMessages += room->getUnreadCount(const_cast<User *>(cur_user));
+        }
+        return totalUnreadMessages;
+    };
+    
+    // 修改：将收到私信改为可点击的按钮
+    QPushButton* msgCountWidget = new QPushButton(QString("收到私信\n%1").arg(calculateUnreadMessages()));
+    
+    // 根据未读消息数量设置不同的样式
+    int totalUnreadMessages = calculateUnreadMessages();
+    if (totalUnreadMessages > 0) {
+        msgCountWidget->setStyleSheet(R"(
+            QPushButton {
+                background: white;
+                border-radius: 12px;
+                padding: 24px 10px;
+                border: 3px solid #FF4444;
+                font: bold 22px 'Microsoft YaHei';
+                color: #E74C3C;
+            }
+            QPushButton:hover {
+                background: #FFF8F8;
+                border-color: #FF6666;
+                color: #C0392B;
+            }
+            QPushButton:pressed {
+                background: #FFE8E8;
+                border-color: #CC0000;
+            }
+        )");
+    } else {
+        msgCountWidget->setStyleSheet(R"(
+            QPushButton {
+                background: white;
+                border-radius: 12px;
+                padding: 24px 10px;
+                border: 2px solid #E8E8E8;
+                font: bold 22px 'Microsoft YaHei';
+                color: #333333;
+            }
+            QPushButton:hover {
+                background: #F8F9FA;
+                border-color: #D0D0D0;
+            }
+            QPushButton:pressed {
+                background: #F0F0F0;
+            }
+        )");
     }
-    QLabel *authTitle = new QLabel("权限等级:");
-    QLabel *authContent = new QLabel(authLevel);
-    authContent->setStyleSheet("color: #FF4500; font-weight: bold;");
-    formLayout->addRow(authTitle, authContent);
+    
+    msgCountWidget->setMinimumHeight(80);
+    connect(msgCountWidget, &QPushButton::clicked, [this]() {
+        switchPage(2); // 跳转到私信页面（第3页，索引为2）
+        statusBar()->showMessage("已切换到私信页面", 2000);
+    });
+    statsLayout->addWidget(msgCountWidget);
 
-    // 其他信息
-    QLabel *statusTitle = new QLabel("账户状态:");
-    QLabel *statusContent = new QLabel("正常使用中");
-    statusContent->setStyleSheet("color: #32CD32;");
-    formLayout->addRow(statusTitle, statusContent);
+    // 修改：将账户等级改为用户评级
+    QWidget* ratingWidget = createStatItem("用户评级", cur_user->getRatingLevel());
+    statsLayout->addWidget(ratingWidget);
 
-    // ================= 组装最终布局 =================
-    mainLayout->addWidget(basicInfoWidget);
+    // statsLayout->addWidget(createStatItem("账户等级", "普通用户"));
 
-    // 添加分隔线
-    QFrame *line = new QFrame;
-    line->setFrameShape(QFrame::HLine);
-    line->setStyleSheet("color: #EEE;");
-    mainLayout->addWidget(line);
-
-    mainLayout->addWidget(detailWidget);
-    mainLayout->addStretch(); // 底部留空
+    // 添加卡片到主布局
+    mainLayout->addWidget(cardWidget);
+    mainLayout->addWidget(statsCard);
 
     // 添加退出按钮
     QPushButton *exitButton = new QPushButton("安全退出");
-    exitButton->setFixedSize(120, 35);
-    exitButton->setStyleSheet(
-        "QPushButton {"
-        "  background: #FF4444;"
-        "  color: white;"
-        "  border-radius: 8px;"
-        "  font: bold 14px 'Microsoft YaHei';"
-        "}"
-        "QPushButton:hover {"
-        "  background: #FF6666;"
-        "}"
-        "QPushButton:pressed {"
-        "  background: #CC0000;"
-        "}");
+    exitButton->setFixedSize(120, 40);
+    exitButton->setStyleSheet(R"(
+        QPushButton {
+            background: #FF4444;
+            color: white;
+            border-radius: 20px;
+            font: bold 14px 'Microsoft YaHei';
+            padding: 8px 16px;
+        }
+        QPushButton:hover {
+            background: #FF6666;
+        }
+        QPushButton:pressed {
+            background: #CC0000;
+        }
+    )");
+
     connect(exitButton, &QPushButton::clicked, this, [](){
         QMessageBox::StandardButton reply;
         reply = QMessageBox::question(nullptr, "确认退出",
@@ -433,20 +661,15 @@ QWidget* MainWindow::mine_create() {//主页创建
         }
     });
 
-    // 将退出按钮放入水平布局容器保持居中
     QWidget *exitContainer = new QWidget;
     QHBoxLayout *exitLayout = new QHBoxLayout(exitContainer);
-    exitLayout->setContentsMargins(0, 20, 0, 20);
+    exitLayout->setContentsMargins(0, 20, 0, 0);
     exitLayout->addStretch();
     exitLayout->addWidget(exitButton);
     exitLayout->addStretch();
 
     mainLayout->addWidget(exitContainer);
-    // 设置页面样式
-    userInfoPage->setStyleSheet(
-        "background: #FFF5EE;"  // 浅粉色背景
-        "font-family: 'Microsoft YaHei';"
-        );
+    mainLayout->addStretch();
 
     return userInfoPage;
 }
@@ -582,31 +805,59 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
             break;
         }
         case QEvent::MouseButtonRelease: {
-             QMouseEvent *me = static_cast<QMouseEvent*>(event);
+            QMouseEvent *me = static_cast<QMouseEvent*>(event);
             if (me->button() == Qt::LeftButton) {
-                 QMessageBox::StandardButton reply;
-                 reply = QMessageBox::question(
-                     this,
-                     "裁剪确认",
-                     "确定要这样裁剪吗？",
-                     QMessageBox::Yes | QMessageBox::No
-                     );
-                 if (reply == QMessageBox::Yes) {
-                     // 关闭裁剪对话框
-                     if (m_cropData.dialog) {
-                         m_cropData.dialog->accept();  // 触发Accepted状态
-                     }
-                 } else {
-                     // 保持对话框打开，继续调整
-                     m_cropData.rubberBand->hide();
-                     m_cropData.origin = QPoint();
-                 }
-                 return true;
+                QMessageBox::StandardButton reply;
+                reply = QMessageBox::question(
+                    this,
+                    "裁剪确认",
+                    "确定要这样裁剪吗？",
+                    QMessageBox::Yes | QMessageBox::No
+                    );
+                if (reply == QMessageBox::Yes) {
+                    // 关闭裁剪对话框
+                    if (m_cropData.dialog) {
+                        m_cropData.dialog->accept();  // 触发Accepted状态
+                    }
+                } else {
+                    // 保持对话框打开，继续调整
+                    m_cropData.rubberBand->hide();
+                    m_cropData.origin = QPoint();
+                }
+                return true;
             }
             break;
         }
         default:
             break;
+        }
+    }
+    // 处理聊天卡片点击事件
+    else if (event->type() == QEvent::MouseButtonPress) {
+        QMouseEvent *me = static_cast<QMouseEvent*>(event);
+        if (me->button() == Qt::LeftButton) {
+            QWidget* widget = qobject_cast<QWidget*>(obj);
+            if (widget) {
+                // 检查点击的目标是否是ClickedLabel（用户名），如果是则不处理聊天室打开
+                ClickedLabel* clickedLabel = qobject_cast<ClickedLabel*>(obj);
+                if (clickedLabel) {
+                    // 点击的是用户名标签，让ClickedLabel自己处理点击事件
+                    return false;
+                }
+                
+                // 检查是否是聊天卡片
+                QVariant chatRoomVariant = widget->property("chatRoom");
+                if (chatRoomVariant.isValid()) {
+                    ChatRoom* room = chatRoomVariant.value<ChatRoom*>();
+                    if (room) {
+                        room->markAsRead(const_cast<User *>(cur_user));
+                        room->show();
+                        room->raise();
+                        room->activateWindow();
+                        return true;
+                    }
+                }
+            }
         }
     }
     return QMainWindow::eventFilter(obj, event);
@@ -730,7 +981,7 @@ QWidget* MainWindow::itempost_create() {
         }
 
         // 获取搜索结果
-       auto results = findPost(keyword.trimmed());
+        auto results = findPost(keyword.trimmed());
 
         // 显示结果
         if(results.empty()) {
@@ -877,6 +1128,8 @@ QWidget* MainWindow::createSinglePost(const ItemPost& post) {
         )");
         tagLayout->addWidget(tagLabel);
     }
+    
+    // 恢复：作者标签
     ClickedLabel* authorLabel = new ClickedLabel("@" + post.getOwner()->getUsername());
     authorLabel->setStyleSheet(R"(
         font: 14px 'Microsoft YaHei';
@@ -887,16 +1140,57 @@ QWidget* MainWindow::createSinglePost(const ItemPost& post) {
     )");
     authorLabel->setCursor(Qt::PointingHandCursor);
     authorLabel->setToolTip("查看作者信息");
-
-    // 在原有titleLayout中添加作者标签
-    titleLayout->addWidget(authorLabel);
-    titleLayout->addWidget(titleLabel, 4);
-    titleLayout->addWidget(priceLabel, 1);
-
+    
+    // 新增：收藏按钮
+    QPushButton* favoriteBtn = new QPushButton;
+    favoriteBtn->setFixedSize(32, 32);
+    favoriteBtn->setCursor(Qt::PointingHandCursor);
+    
+    // 根据收藏状态设置按钮样式
+    if (cur_user && post.isFavoritedBy(cur_user)) {
+        favoriteBtn->setText("❤️");
+        favoriteBtn->setToolTip("取消收藏");
+        favoriteBtn->setStyleSheet(R"(
+            QPushButton {
+                background: #FFE6E6;
+                border: 2px solid #FF4444;
+                border-radius: 16px;
+                font-size: 16px;
+                color: #FF4444;
+            }
+            QPushButton:hover {
+                background: #FFCCCC;
+            }
+        )");
+    } else {
+        favoriteBtn->setText("♡");
+        favoriteBtn->setToolTip("收藏商品");
+        favoriteBtn->setStyleSheet(R"(
+            QPushButton {
+                background: #F8F9FA;
+                border: 2px solid #DEE2E6;
+                border-radius: 16px;
+                font-size: 16px;
+                color: #6C757D;
+            }
+            QPushButton:hover {
+                background: #E9ECEF;
+                border-color: #ADB5BD;
+            }
+        )");
+    }
+    
+    connect(favoriteBtn, &QPushButton::clicked, [this, post]() {
+        toggleFavorite(post);
+    });
+    
     // 连接作者标签点击信号
     connect(authorLabel, &ClickedLabel::clicked, this, [this, post]{
         showAuthorInfo(*post.getOwner());
     });
+    
+    tagLayout->addWidget(authorLabel);
+    tagLayout->addWidget(favoriteBtn);
     tagLayout->addStretch();
 
     infoLayout->addWidget(tagWidget);
@@ -914,7 +1208,7 @@ QWidget* MainWindow::createSinglePost(const ItemPost& post) {
 void MainWindow::showAuthorInfo(const User& author) {
     QDialog dialog(this);
     dialog.setWindowTitle("用户信息 - " + author.getUsername());
-    dialog.setMinimumSize(320, 280);
+    dialog.setMinimumSize(400, 400);
 
     QVBoxLayout* mainLayout = new QVBoxLayout(&dialog);
     mainLayout->setContentsMargins(20, 15, 20, 15);
@@ -953,6 +1247,20 @@ void MainWindow::showAuthorInfo(const User& author) {
     regTimeValue->setStyleSheet("color: #666;");
     infoLayout->addRow("注册时间：", regTimeValue);
 
+    // 新增：用户评分
+    QLabel* ratingValue = new QLabel(author.getRatingLevel());
+    ratingValue->setStyleSheet("font: 14px 'Microsoft YaHei'; color: #FF6B35;");
+    infoLayout->addRow("用户评级：", ratingValue);
+
+    // 新增：评分统计
+    if (author.getRatingCount() > 0) {
+        QLabel* ratingStatsValue = new QLabel(
+            QString("平均分: %1 (%2人评价)").arg(author.getAverageRating(), 0, 'f', 1).arg(author.getRatingCount())
+        );
+        ratingStatsValue->setStyleSheet("color: #666;");
+        infoLayout->addRow("评分统计：", ratingStatsValue);
+    }
+
     // 认证等级
     QString authLevelStr = author.getAuthLevel() > 0 ? "认证用户" : "普通用户";
     QLabel* authValue = new QLabel(authLevelStr);
@@ -970,27 +1278,122 @@ void MainWindow::showAuthorInfo(const User& author) {
     mainLayout->addLayout(infoLayout);
     mainLayout->addStretch();
 
-    QPushButton* chatBtn = new QPushButton("发送私信");
-    chatBtn->setStyleSheet(R"(
+    // 按钮区域
+    QHBoxLayout* buttonLayout = new QHBoxLayout;
+
+    // 只有当前用户不是作者本人时，才显示相关按钮
+    if (cur_user && cur_user->getUserID() != author.getUserID()) {
+        // 发送私信按钮
+        QPushButton* chatBtn = new QPushButton("发送私信");
+        chatBtn->setStyleSheet(R"(
+            QPushButton {
+                background: #28a745;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font: bold 12px 'Microsoft YaHei';
+            }
+            QPushButton:hover {
+                background: #218838;
+            }
+        )");
+
+        // 新增：评分按钮
+        QPushButton* rateBtn = new QPushButton("评价用户");
+        rateBtn->setStyleSheet(R"(
+            QPushButton {
+                background: #FF6B35;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font: bold 12px 'Microsoft YaHei';
+            }
+            QPushButton:hover {
+                background: #E55A2B;
+            }
+        )");
+
+        // 新增：查看评价按钮
+        QPushButton* viewRatingsBtn = new QPushButton("查看评价");
+        viewRatingsBtn->setStyleSheet(R"(
+            QPushButton {
+                background: #007BFF;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font: bold 12px 'Microsoft YaHei';
+            }
+            QPushButton:hover {
+                background: #0056B3;
+            }
+        )");
+
+        buttonLayout->addWidget(chatBtn);
+        buttonLayout->addWidget(rateBtn);
+        buttonLayout->addWidget(viewRatingsBtn);
+
+        // 连接按钮信号
+        connect(chatBtn, &QPushButton::clicked, [this, &author, &dialog]{
+            dialog.accept();
+            createChatRoom(const_cast<User*>(&author));
+        });
+
+        connect(rateBtn, &QPushButton::clicked, [this, &author, &dialog]{
+            dialog.accept();
+            showRatingDialog(author);
+        });
+
+        connect(viewRatingsBtn, &QPushButton::clicked, [this, &author, &dialog]{
+            dialog.accept();
+            showUserRatings(author);
+        });
+
+    } else {
+        // 如果是查看自己的信息，显示查看评价按钮
+        QPushButton* viewRatingsBtn = new QPushButton("查看我的评价");
+        viewRatingsBtn->setStyleSheet(R"(
+            QPushButton {
+                background: #007BFF;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font: bold 12px 'Microsoft YaHei';
+            }
+            QPushButton:hover {
+                background: #0056B3;
+            }
+        )");
+
+        buttonLayout->addWidget(viewRatingsBtn);
+
+        connect(viewRatingsBtn, &QPushButton::clicked, [this, &author, &dialog]{
+            dialog.accept();
+            showUserRatings(author);
+        });
+    }
+
+    // 关闭按钮
+    QPushButton* closeBtn = new QPushButton("关闭");
+    closeBtn->setStyleSheet(R"(
         QPushButton {
-            background: #28a745;
+            background: #6C757D;
             color: white;
             padding: 8px 16px;
             border-radius: 4px;
+            font: bold 12px 'Microsoft YaHei';
         }
         QPushButton:hover {
-            background: #218838;
+            background: #5A6268;
         }
     )");
 
-    QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok);
-    buttons->addButton(chatBtn, QDialogButtonBox::ActionRole);
-    connect(chatBtn, &QPushButton::clicked, [this, &author, &dialog]{
-        dialog.accept();
-        createChatRoom(const_cast<User*>(&author)); // 实际项目中应避免const_cast
-    });
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(closeBtn);
 
-    mainLayout->addWidget(buttons);
+    connect(closeBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
+
+    mainLayout->addLayout(buttonLayout);
+
     dialog.exec();
 }
 void MainWindow::createChatRoom(User* targetUser){
@@ -1015,6 +1418,8 @@ void MainWindow::createChatRoom(User* targetUser){
 
     // 初始化设置
     newRoom->loadHistory();
+    // 连接未读消息数量变化信号
+    connect(newRoom, &ChatRoom::unreadCountChanged, this, &MainWindow::updateUnreadMessageDisplay);
     activeChatRooms.emplace_back(newRoom);
     newRoom->show();
 }
@@ -1051,13 +1456,111 @@ QWidget* MainWindow::createDetailDialogContent(const ItemPost& post, QDialog* pa
     QPushButton *backBtn = new QPushButton("← 返回", content);
     backBtn->setStyleSheet("font: bold 14px; padding:8px; margin-bottom:15px;");
     headerLayout->addWidget(backBtn);
+    
+    // 新增：如果是商品发布者，显示编辑和删除按钮
+    if (cur_user && post.getOwner()->getUserID() == cur_user->getUserID()) {
+        QPushButton *editBtn = new QPushButton("✏️ 编辑", content);
+        QPushButton *deleteBtn = new QPushButton("🗑️ 删除", content);
+        
+        editBtn->setStyleSheet(R"(
+            QPushButton {
+                background: #28A745;
+                color: white;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font: bold 12px 'Microsoft YaHei';
+                margin-left: 8px;
+            }
+            QPushButton:hover {
+                background: #218838;
+            }
+        )");
+        
+        deleteBtn->setStyleSheet(R"(
+            QPushButton {
+                background: #DC3545;
+                color: white;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font: bold 12px 'Microsoft YaHei';
+                margin-left: 8px;
+            }
+            QPushButton:hover {
+                background: #C82333;
+            }
+        )");
+        
+        connect(editBtn, &QPushButton::clicked, [this, post, parent]() {
+            parent->accept(); // 关闭详情对话框
+            editItemPost(post);
+        });
+        
+        connect(deleteBtn, &QPushButton::clicked, [this, post, parent]() {
+            parent->accept(); // 关闭详情对话框
+            deleteItemPost(post);
+        });
+        
+        headerLayout->addWidget(editBtn);
+        headerLayout->addWidget(deleteBtn);
+    }
+    
+    // 新增：收藏按钮（所有用户都可以看到）
+    if (cur_user) {
+        QPushButton *favoriteBtn = new QPushButton;
+        favoriteBtn->setFixedSize(40, 40);
+        favoriteBtn->setCursor(Qt::PointingHandCursor);
+        
+        if (post.isFavoritedBy(cur_user)) {
+            favoriteBtn->setText("❤️");
+            favoriteBtn->setToolTip("取消收藏");
+            favoriteBtn->setStyleSheet(R"(
+                QPushButton {
+                    background: #FFE6E6;
+                    border: 2px solid #FF4444;
+                    border-radius: 20px;
+                    font-size: 18px;
+                    color: #FF4444;
+                    margin-left: 8px;
+                }
+                QPushButton:hover {
+                    background: #FFCCCC;
+                }
+            )");
+        } else {
+            favoriteBtn->setText("♡");
+            favoriteBtn->setToolTip("收藏商品");
+            favoriteBtn->setStyleSheet(R"(
+                QPushButton {
+                    background: #F8F9FA;
+                    border: 2px solid #DEE2E6;
+                    border-radius: 20px;
+                    font-size: 18px;
+                    color: #6C757D;
+                    margin-left: 8px;
+                }
+                QPushButton:hover {
+                    background: #E9ECEF;
+                    border-color: #ADB5BD;
+                }
+            )");
+        }
+        
+        connect(favoriteBtn, &QPushButton::clicked, [this, post, parent]() {
+            toggleFavorite(post);
+            parent->accept(); // 关闭详情对话框
+            refreshItemPosts(); // 刷新界面
+        });
+        
+        headerLayout->addWidget(favoriteBtn);
+    }
+    
     headerLayout->addStretch();
     mainLayout->addLayout(headerLayout);
 
     // 图片展示区域（缩小尺寸）
     QLabel *imageLabel = new QLabel(content);
     QPixmap pixmap(post.getMainImage().isEmpty() ?
-                 ":/default_item.jpg" : post.getMainImage());
+                       ":/default_item.jpg" : post.getMainImage());
     pixmap = pixmap.scaled(400, 400, Qt::KeepAspectRatio, Qt::SmoothTransformation); // 缩小图片尺寸
     imageLabel->setPixmap(pixmap);
     imageLabel->setAlignment(Qt::AlignCenter);
@@ -1107,6 +1610,37 @@ QWidget* MainWindow::createDetailDialogContent(const ItemPost& post, QDialog* pa
 
     infoLayout->addWidget(titleRow);
     infoLayout->addWidget(descLabel);
+    
+    // 新增：作者信息
+    QWidget* authorRow = new QWidget(infoWidget);
+    QHBoxLayout* authorLayout = new QHBoxLayout(authorRow);
+    authorLayout->setContentsMargins(0, 0, 0, 0);
+    
+    QLabel* authorTitleLabel = new QLabel("发布者:", authorRow);
+    authorTitleLabel->setStyleSheet(R"(
+        font: 14px 'Microsoft YaHei';
+        color: #666666;
+    )");
+    
+    ClickedLabel* authorNameLabel = new ClickedLabel(post.getOwner()->getUsername(), authorRow);
+    authorNameLabel->setStyleSheet(R"(
+        font: 14px 'Microsoft YaHei';
+        color: #007BFF;
+        text-decoration: underline;
+        cursor: pointer;
+    )");
+    authorNameLabel->setCursor(Qt::PointingHandCursor);
+    authorNameLabel->setToolTip("查看作者信息");
+    
+    connect(authorNameLabel, &ClickedLabel::clicked, [this, post]() {
+        showAuthorInfo(*post.getOwner());
+    });
+    
+    authorLayout->addWidget(authorTitleLabel);
+    authorLayout->addWidget(authorNameLabel);
+    authorLayout->addStretch();
+    
+    infoLayout->addWidget(authorRow);
     infoLayout->addStretch();
 
     mainLayout->addWidget(imageLabel);
@@ -1283,34 +1817,25 @@ void MainWindow::refreshItemPosts() {
 QWidget* MainWindow::createChatRoomCard(ChatRoom* room) {
     // 卡片容器
     QWidget* card = new QWidget(this);
-    card->setStyleSheet(R"(
-    QWidget {
-        background: white;
-        border-radius: 8px;
-        padding: 12px;
-    }
-    QWidget:hover {
-        background: #F8F9FA;
-    }
-)");
     card->setMinimumHeight(80);
 
     // 主布局保持水平布局
     QHBoxLayout* mainLayout = new QHBoxLayout(card);
-    mainLayout->setContentsMargins(8, 8, 8, 8);
-    mainLayout->setSpacing(12);
+    mainLayout->setContentsMargins(12, 12, 12, 12);
+    mainLayout->setSpacing(16);
 
-    /* 头像区域（保持原样） */
+    /* 头像区域 */
     QLabel* avatarLabel = new QLabel;
     User* otherUser = room->getOtherUser(cur_user); // 获取对方用户
     QPixmap avatar(otherUser->getAvatarPath().isEmpty() ?
                        ":/default_item.jpg" : otherUser->getAvatarPath());
-    avatar = avatar.scaled(48, 48, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    avatar = avatar.scaled(52, 52, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     avatarLabel->setPixmap(avatar);
     avatarLabel->setStyleSheet(R"(
         QLabel {
-            border-radius: 24px;
-            border: 1px solid #EEE;
+            border-radius: 26px;
+            border: 2px solid #E8E8E8;
+            background: #F8F9FA;
         }
     )");
     mainLayout->addWidget(avatarLabel);
@@ -1319,7 +1844,7 @@ QWidget* MainWindow::createChatRoomCard(ChatRoom* room) {
     QWidget* rightArea = new QWidget;
     QVBoxLayout* rightLayout = new QVBoxLayout(rightArea);
     rightLayout->setContentsMargins(0, 0, 0, 0);
-    rightLayout->setSpacing(4);
+    rightLayout->setSpacing(6);
 
     // 顶部行（用户名 + 时间）
     QWidget* topRow = new QWidget;
@@ -1327,72 +1852,112 @@ QWidget* MainWindow::createChatRoomCard(ChatRoom* room) {
     topLayout->setContentsMargins(0, 0, 0, 0);
     topLayout->setSpacing(8);
 
-    // 用户名标签（保持原样）
+    // 用户名标签 - 改为可点击的ClickedLabel
     ClickedLabel* nameLabel = new ClickedLabel(otherUser->getUsername());
     nameLabel->setStyleSheet(R"(
-        font: bold 14px 'Microsoft YaHei';
-        color: #333;
+        font: bold 15px 'Microsoft YaHei';
+        color: #007BFF;
+        text-decoration: underline;
+        cursor: pointer;
     )");
+    nameLabel->setCursor(Qt::PointingHandCursor);
+    nameLabel->setToolTip("点击查看用户信息");
+    
+    // 连接用户名点击事件
+    connect(nameLabel, &ClickedLabel::clicked, this, [this, otherUser]() {
+        showAuthorInfo(*otherUser);
+    });
+    
     topLayout->addWidget(nameLabel);
 
-    // 时间标签（新增弹性空间使其右对齐）
+    // 时间标签（右对齐）
     QWidget* timeSpacer = new QWidget;
     timeSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     topLayout->addWidget(timeSpacer);
 
     QLabel* timeLabel = new QLabel(room->getLastMessageTime().toString("hh:mm"));
     timeLabel->setStyleSheet(R"(
-    font: 12px 'Microsoft YaHei';
-    color: #999;
-    padding-right: 4px;
-)");
+        font: 12px 'Microsoft YaHei';
+        color: #95A5A6;
+        padding-right: 4px;
+    )");
     topLayout->addWidget(timeLabel);
 
     rightLayout->addWidget(topRow);
 
-    // 消息内容（保持原样但调整对齐）
+    // 消息内容
     QLabel* msgLabel = new QLabel(room->getLastMessageContent());
     msgLabel->setStyleSheet(R"(
-    font: 13px 'Microsoft YaHei';
-    color: #666;
-    qproperty-elideMode: ElideRight;
-    padding-top: 2px;
-)");
+        font: 13px 'Microsoft YaHei';
+        color: #7F8C8D;
+        qproperty-elideMode: ElideRight;
+        padding-top: 2px;
+    )");
     msgLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     rightLayout->addWidget(msgLabel);
 
     mainLayout->addWidget(rightArea, 1);
 
-    /* 未读标记调整到右上角 */
-    if(int unread = room->getUnreadCount(const_cast<User *>(cur_user))) {
+    /* 未读消息标记和样式 */
+    int unread = room->getUnreadCount(const_cast<User *>(cur_user));
+    if(unread > 0) {
+        // 未读消息的简洁视觉反馈
         QLabel* badge = new QLabel(QString::number(unread));
-        // 保持原有样式，仅修改布局
         badge->setStyleSheet(R"(
-        background: #FF4444;
-        color: white;
-        min-width: 20px;
-        max-width: 20px;
-        min-height: 20px;
-        max-height: 20px;
-        border-radius: 10px;
-        font: bold 10px 'Microsoft YaHei';
-        qproperty-alignment: AlignCenter;
-    )");
+            background: #FF4444;
+            color: white;
+            min-width: 22px;
+            max-width: 22px;
+            min-height: 22px;
+            max-height: 22px;
+            border-radius: 11px;
+            font: bold 11px 'Microsoft YaHei';
+            qproperty-alignment: AlignCenter;
+            border: 2px solid white;
+        )");
 
-        // 使用覆盖布局定位
+        // 使用覆盖布局定位未读标记
         QHBoxLayout* badgeLayout = new QHBoxLayout(card);
-        badgeLayout->setContentsMargins(0, 4, 4, 0);
+        badgeLayout->setContentsMargins(0, 6, 6, 0);
         badgeLayout->addWidget(badge, 0, Qt::AlignTop | Qt::AlignRight);
+        
+        // 未读消息的简洁卡片样式
+        card->setStyleSheet(R"(
+            QWidget {
+                background: white;
+                border-radius: 12px;
+                padding: 12px;
+                border: 2px solid #FF4444;
+            }
+            QWidget:hover {
+                background: #FFF8F8;
+                border-color: #FF6666;
+            }
+        )");
+    } else {
+        // 已读消息的简洁样式
+        card->setStyleSheet(R"(
+            QWidget {
+                background: white;
+                border-radius: 12px;
+                padding: 12px;
+                border: 1px solid #F0F0F0;
+            }
+            QWidget:hover {
+                background: #FAFAFA;
+                border-color: #E0E0E0;
+            }
+        )");
     }
-
-    // 点击事件处理
-    connect(nameLabel, &ClickedLabel::clicked, [this, room]{
-        room->markAsRead(const_cast<User *>(cur_user));
-        room->show();
-    });
 
     // 设置鼠标手势
     card->setCursor(Qt::PointingHandCursor);
+
+    // 整个卡片都可以点击 - 使用事件过滤器
+    card->installEventFilter(this);
+    
+    // 存储聊天室指针到卡片对象中，以便事件过滤器使用
+    card->setProperty("chatRoom", QVariant::fromValue(room));
 
     return card;
 }
@@ -1401,6 +1966,52 @@ QWidget* MainWindow::createChatRoomCard(ChatRoom* room) {
 QWidget* MainWindow::createChatListWidget() {
     QWidget* container = new QWidget(this);
     QVBoxLayout* mainLayout = new QVBoxLayout(container);
+
+    // ===== 新增：顶部工具栏 =====
+    QWidget* toolBar = new QWidget(container);
+    QHBoxLayout* toolLayout = new QHBoxLayout(toolBar);
+    toolLayout->setContentsMargins(0, 0, 0, 0);
+    toolLayout->setSpacing(8);
+
+    // 新增：未读消息统计 - 实时计算
+    auto calculateTotalUnread = [this]() -> int {
+        int totalUnread = 0;
+        for (auto room : activeChatRooms) {
+            totalUnread += room->getUnreadCount(const_cast<User *>(cur_user));
+        }
+        return totalUnread;
+    };
+    
+    QLabel* unreadLabel = new QLabel(QString("未读消息: %1").arg(calculateTotalUnread()));
+    unreadLabel->setStyleSheet(R"(
+        font: bold 16px 'Microsoft YaHei';
+        color: #E74C3C;
+        padding: 10px 18px;
+        background: white;
+        border-radius: 10px;
+        border: 2px solid #FF4444;
+    )");
+    toolLayout->addWidget(unreadLabel);
+
+    QPushButton* refreshBtn = new QPushButton("⟳ 刷新", toolBar);
+    refreshBtn->setStyleSheet(R"(
+        QPushButton {
+            background: #28A745;
+            color: white;
+            border-radius: 15px;
+            padding: 8px 20px;
+            font: bold 14px 'Microsoft YaHei';
+        }
+        QPushButton:hover {
+            background: #218838;
+        }
+    )");
+    connect(refreshBtn, &QPushButton::clicked, this, [this](){createPages();switchPage(2);});
+    toolLayout->addWidget(refreshBtn);
+    toolLayout->addStretch();
+    toolBar->setLayout(toolLayout);
+    mainLayout->addWidget(toolBar);
+    // ===== 工具栏结束 =====
 
     /* 滚动区域 */
     QScrollArea* scrollArea = new QScrollArea;
@@ -1423,4 +2034,1199 @@ QWidget* MainWindow::createChatListWidget() {
 
     mainLayout->addWidget(scrollArea);
     return container;
+}
+
+void MainWindow::showMyPosts() {
+    QDialog* dialog = new QDialog(this);
+    dialog->setWindowTitle("我发布的商品");
+    dialog->setMinimumSize(800, 600);
+
+    QVBoxLayout* mainLayout = new QVBoxLayout(dialog);
+
+    // 标题栏
+    QWidget* headerWidget = new QWidget;
+    QHBoxLayout* headerLayout = new QHBoxLayout(headerWidget);
+
+    QLabel* titleLabel = new QLabel("我发布的商品");
+    titleLabel->setStyleSheet(R"(
+        font: bold 20px 'Microsoft YaHei';
+        color: #333333;
+    )");
+
+    QPushButton* closeBtn = new QPushButton("关闭");
+    closeBtn->setStyleSheet(R"(
+        QPushButton {
+            background: #FF4444;
+            color: white;
+            border-radius: 15px;
+            padding: 8px 16px;
+            font: bold 14px 'Microsoft YaHei';
+        }
+        QPushButton:hover {
+            background: #FF6666;
+        }
+    )");
+
+    headerLayout->addWidget(titleLabel);
+    headerLayout->addStretch();
+    headerLayout->addWidget(closeBtn);
+
+    mainLayout->addWidget(headerWidget);
+
+    // 滚动区域
+    QScrollArea* scrollArea = new QScrollArea;
+    QWidget* contentWidget = new QWidget;
+    QVBoxLayout* contentLayout = new QVBoxLayout(contentWidget);
+    contentLayout->setSpacing(15);
+
+    // 获取并显示用户发布的商品
+    bool hasPosts = false;
+    for(const auto& post : posts) {
+        if(post.getOwner()->getUserID() == cur_user->getUserID()) {
+            hasPosts = true;
+            
+            // 创建商品卡片
+            QWidget* postCard = new QWidget;
+            postCard->setStyleSheet(R"(
+                QWidget {
+                    background: white;
+                    border-radius: 12px;
+                    padding: 16px;
+                    margin: 8px 0;
+                }
+                QWidget:hover {
+                    background: #FCFCFC;
+                    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+                }
+            )");
+
+            QHBoxLayout* cardLayout = new QHBoxLayout(postCard);
+            cardLayout->setContentsMargins(0, 0, 0, 0);
+            cardLayout->setSpacing(20);
+
+            // 商品图片
+            QLabel* imageLabel = new QLabel;
+            QString mainImage = post.getImages().empty() ?
+                                ":/default_item.jpg" : post.getMainImage();
+            QPixmap pixmap(mainImage);
+            pixmap = pixmap.scaled(120, 120, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            imageLabel->setPixmap(pixmap);
+            imageLabel->setStyleSheet(R"(
+                QLabel {
+                    border-radius: 8px;
+                    background: #F0F0F0;
+                    min-width: 120px;
+                    max-width: 120px;
+                    min-height: 120px;
+                    max-height: 120px;
+                }
+            )");
+            imageLabel->setScaledContents(true);
+            cardLayout->addWidget(imageLabel);
+
+            // 商品信息
+            QWidget* infoWidget = new QWidget;
+            QVBoxLayout* infoLayout = new QVBoxLayout(infoWidget);
+            infoLayout->setContentsMargins(0, 0, 0, 0);
+            infoLayout->setSpacing(8);
+
+            QLabel* titleLabel = new QLabel(post.getTitle());
+            titleLabel->setStyleSheet(R"(
+                font: bold 16px 'Microsoft YaHei';
+                color: #333333;
+            )");
+
+            QLabel* priceLabel = new QLabel(QString("¥%1").arg(post.getPrice(), 0, 'f', 2));
+            priceLabel->setStyleSheet(R"(
+                font: 18px 'Microsoft YaHei';
+                color: #FF4444;
+            )");
+
+            QLabel* timeLabel = new QLabel(QString("发布时间: %1").arg(
+                post.getPostTime().toString("yyyy-MM-dd hh:mm:ss")));
+            timeLabel->setStyleSheet(R"(
+                font: 12px 'Microsoft YaHei';
+                color: #666666;
+            )");
+
+            infoLayout->addWidget(titleLabel);
+            infoLayout->addWidget(priceLabel);
+            infoLayout->addWidget(timeLabel);
+            infoLayout->addStretch();
+
+            cardLayout->addWidget(infoWidget, 1);
+
+            // 操作按钮
+            QWidget* buttonWidget = new QWidget;
+            QVBoxLayout* buttonLayout = new QVBoxLayout(buttonWidget);
+            buttonLayout->setContentsMargins(0, 0, 0, 0);
+            buttonLayout->setSpacing(8);
+
+            QPushButton* editBtn = new QPushButton("✏️ 编辑");
+            QPushButton* deleteBtn = new QPushButton("🗑️ 删除");
+
+            editBtn->setStyleSheet(R"(
+                QPushButton {
+                    background: #28A745;
+                    color: white;
+                    border-radius: 8px;
+                    padding: 8px 16px;
+                    font: bold 12px 'Microsoft YaHei';
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    background: #218838;
+                }
+            )");
+
+            deleteBtn->setStyleSheet(R"(
+                QPushButton {
+                    background: #DC3545;
+                    color: white;
+                    border-radius: 8px;
+                    padding: 8px 16px;
+                    font: bold 12px 'Microsoft YaHei';
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    background: #C82333;
+                }
+            )");
+
+            connect(editBtn, &QPushButton::clicked, [this, post, dialog]() {
+                dialog->accept();
+                editItemPost(post);
+            });
+
+            connect(deleteBtn, &QPushButton::clicked, [this, post, dialog]() {
+                dialog->accept();
+                deleteItemPost(post);
+            });
+
+            buttonLayout->addWidget(editBtn);
+            buttonLayout->addWidget(deleteBtn);
+            buttonLayout->addStretch();
+
+            cardLayout->addWidget(buttonWidget);
+
+            contentLayout->addWidget(postCard);
+        }
+    }
+
+    if(!hasPosts) {
+        QLabel* emptyLabel = new QLabel("暂无发布的商品");
+        emptyLabel->setStyleSheet(R"(
+            font: 16px 'Microsoft YaHei';
+            color: #666666;
+            padding: 20px;
+        )");
+        emptyLabel->setAlignment(Qt::AlignCenter);
+        contentLayout->addWidget(emptyLabel);
+    }
+
+    contentLayout->addStretch();
+
+    scrollArea->setWidget(contentWidget);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setStyleSheet("QScrollArea { border: none; }");
+
+    mainLayout->addWidget(scrollArea);
+
+    // 连接关闭按钮
+    connect(closeBtn, &QPushButton::clicked, dialog, &QDialog::accept);
+
+    dialog->exec();
+}
+
+void MainWindow::editItemPost(const ItemPost& post) {
+    // 权限验证
+    if (!cur_user || post.getOwner()->getUserID() != cur_user->getUserID()) {
+        QMessageBox::warning(this, "权限不足", "您只能编辑自己发布的商品！");
+        return;
+    }
+
+    QDialog editor(this);
+    editor.setWindowTitle("编辑商品信息");
+    editor.resize(600, 500);
+
+    // 图片相关变量 - 修复类型转换
+    QStringList imagePaths;
+    const std::vector<QString>& images = post.getImages();
+    for (const auto& image : images) {
+        imagePaths.append(image);
+    }
+    QString coverImagePath = post.getMainImage();
+
+    // 主布局
+    QVBoxLayout* mainLayout = new QVBoxLayout(&editor);
+
+    /* 图片上传区域 */
+    QHBoxLayout* imageLayout = new QHBoxLayout;
+
+    // 图片预览标签
+    QLabel* imagePreview = new QLabel;
+    imagePreview->setFixedSize(100, 100);
+    imagePreview->setStyleSheet("border: 2px dashed #ccc; border-radius: 8px;");
+    imagePreview->setAlignment(Qt::AlignCenter);
+
+    // 显示当前图片
+    if (!coverImagePath.isEmpty()) {
+        QPixmap pixmap(coverImagePath);
+        pixmap = pixmap.scaled(100, 100, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        imagePreview->setPixmap(pixmap);
+    }
+
+    // 上传按钮
+    QPushButton* uploadBtn = new QPushButton("更换图片");
+    uploadBtn->setFixedSize(100, 30);
+    uploadBtn->setStyleSheet(R"(
+        QPushButton {
+            background: #007BFF;
+            color: white;
+            border-radius: 4px;
+        }
+        QPushButton:hover {
+            background: #0056B3;
+        }
+    )");
+
+    // 布局排列
+    imageLayout->addWidget(imagePreview);
+    imageLayout->addWidget(uploadBtn);
+    imageLayout->addStretch();
+
+    // 图片上传功能
+    connect(uploadBtn, &QPushButton::clicked, [&]{
+        QString path = QFileDialog::getOpenFileName(
+            &editor,
+            "选择商品图片",
+            QStandardPaths::writableLocation(QStandardPaths::PicturesLocation),
+            "图片文件 (*.jpg *.jpeg *.png)"
+            );
+
+        if(!path.isEmpty()) {
+            // 显示缩略图
+            QPixmap pixmap(path);
+            pixmap = pixmap.scaled(100, 100, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            imagePreview->setPixmap(pixmap);
+            imagePaths.clear();
+            imagePaths.append(path);
+            coverImagePath = path;
+        }
+    });
+
+    mainLayout->addLayout(imageLayout);
+
+    // 表单控件 - 预填充当前数据
+    QLineEdit* titleEdit = new QLineEdit(post.getTitle());
+    QDoubleSpinBox* priceEdit = new QDoubleSpinBox;
+    priceEdit->setValue(post.getPrice());
+    QLineEdit* tagsEdit = new QLineEdit;
+    QTextEdit* contentEdit = new QTextEdit(post.getDescription());
+    QPushButton* submitBtn = new QPushButton("保存修改");
+
+    // 配置价格输入
+    priceEdit->setRange(0.0, 999999.99);
+    priceEdit->setPrefix("¥ ");
+    priceEdit->setDecimals(2);
+    priceEdit->setButtonSymbols(QAbstractSpinBox::NoButtons);
+
+    // 处理标签显示
+    QString tagsText;
+    for (const auto& tag : post.getFlags()) {
+        if (!tagsText.isEmpty()) tagsText += " ";
+        tagsText += tag;
+    }
+    tagsEdit->setText(tagsText);
+    tagsEdit->setPlaceholderText("用空格分隔标签，如：电子 数码 手机");
+
+    // 表单布局
+    QFormLayout* formLayout = new QFormLayout(&editor);
+    formLayout->setLabelAlignment(Qt::AlignRight);
+
+    formLayout->addRow("商品标题：", titleEdit);
+    formLayout->addRow("商品价格：", priceEdit);
+    formLayout->addRow("商品标签：", tagsEdit);
+    formLayout->addRow("详细描述：", contentEdit);
+    formLayout->addRow(submitBtn);
+    mainLayout->addLayout(formLayout);
+
+    // 输入验证
+    auto validateInput = [&]() -> bool {
+        if(titleEdit->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&editor, "提示", "请输入商品标题");
+            return false;
+        }
+        if(priceEdit->value() <= 0) {
+            QMessageBox::warning(&editor, "提示", "价格必须大于0");
+            return false;
+        }
+        return true;
+    };
+
+    connect(submitBtn, &QPushButton::clicked, [&]{
+        if(!validateInput()) return;
+
+        // 处理标签输入
+        QString tagsInput = tagsEdit->text();
+        std::vector<QString> parsedTags;
+        if(!tagsInput.isEmpty()) {
+            QStringList rawTags = tagsInput.split(" ");
+            foreach(const QString& rawTag, rawTags) {
+                QString processedTag = rawTag.trimmed()
+                    .replace(" ", "")
+                    .replace("#", "")
+                    .left(15);
+
+                if(!processedTag.isEmpty()) {
+                    parsedTags.push_back(processedTag);
+                }
+            }
+        }
+
+        if(parsedTags.empty()) {
+            parsedTags.push_back("未分类");
+        }
+
+        if(parsedTags.size() > 5) {
+            parsedTags.resize(5);
+        }
+
+        // 查找并更新商品
+        for (auto& itemPost : posts) {
+            if (itemPost.getTitle() == post.getTitle() && 
+                itemPost.getOwner()->getUserID() == post.getOwner()->getUserID() &&
+                itemPost.getPostTime() == post.getPostTime()) {
+                
+                // 更新商品信息
+                itemPost = ItemPost(titleEdit->text().trimmed(), 
+                                   contentEdit->toPlainText(), 
+                                   priceEdit->value(), 
+                                   cur_user, 
+                                   parsedTags);
+                
+                // 更新图片 - 修复类型转换
+                for(const auto& path : imagePaths) {
+                    itemPost.addImage(path);
+                }
+                
+                QMessageBox::information(&editor, "成功", "商品信息已更新！");
+                editor.accept();
+                save_item(); // 保存数据到文件
+                refreshItemPosts();
+                return;
+            }
+        }
+        
+        QMessageBox::warning(&editor, "错误", "未找到要编辑的商品！");
+    });
+
+    // 样式设置
+    editor.setStyleSheet(R"(
+        QDialog {
+            background: #F5F5F5;
+        }
+        QLineEdit, QTextEdit, QDoubleSpinBox {
+            padding: 8px;
+            border: 1px solid #DDD;
+            border-radius: 4px;
+            font: 14px 'Microsoft YaHei';
+        }
+        QTextEdit {
+            min-height: 100px;
+        }
+    )");
+    
+    editor.exec();
+}
+
+void MainWindow::deleteItemPost(const ItemPost& post) {
+    // 权限验证
+    if (!cur_user || post.getOwner()->getUserID() != cur_user->getUserID()) {
+        QMessageBox::warning(this, "权限不足", "您只能删除自己发布的商品！");
+        return;
+    }
+
+    // 确认删除对话框
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this, 
+        "确认删除", 
+        QString("确定要删除商品「%1」吗？\n此操作不可撤销！").arg(post.getTitle()),
+        QMessageBox::Yes | QMessageBox::No
+    );
+
+    if (reply == QMessageBox::Yes) {
+        // 查找并删除商品
+        auto it = posts.begin();
+        while (it != posts.end()) {
+            if (it->getTitle() == post.getTitle() && 
+                it->getOwner()->getUserID() == post.getOwner()->getUserID() &&
+                it->getPostTime() == post.getPostTime()) {
+                
+                // 删除相关的图片文件（可选）
+                for (const auto& imagePath : it->getImages()) {
+                    QFile file(imagePath);
+                    if (file.exists()) {
+                        // 可以选择删除图片文件，这里暂时注释掉
+                        // file.remove();
+                    }
+                }
+                
+                // 从向量中删除
+                posts.erase(it);
+                
+                QMessageBox::information(this, "删除成功", "商品已成功删除！");
+                save_item(); // 保存数据到文件
+                refreshItemPosts();
+                return;
+            }
+            ++it;
+        }
+        
+        QMessageBox::warning(this, "错误", "未找到要删除的商品！");
+    }
+}
+
+void MainWindow::showItemManagementDialog() {
+    QDialog* dialog = new QDialog(this);
+    dialog->setWindowTitle("我的商品管理");
+    dialog->setMinimumSize(900, 700);
+
+    QVBoxLayout* mainLayout = new QVBoxLayout(dialog);
+
+    // 标题栏
+    QWidget* headerWidget = new QWidget;
+    QHBoxLayout* headerLayout = new QHBoxLayout(headerWidget);
+
+    QLabel* titleLabel = new QLabel("我的商品管理");
+    titleLabel->setStyleSheet(R"(
+        font: bold 20px 'Microsoft YaHei';
+        color: #333333;
+    )");
+
+    QPushButton* closeBtn = new QPushButton("关闭");
+    closeBtn->setStyleSheet(R"(
+        QPushButton {
+            background: #6C757D;
+            color: white;
+            border-radius: 15px;
+            padding: 8px 16px;
+            font: bold 14px 'Microsoft YaHei';
+        }
+        QPushButton:hover {
+            background: #5A6268;
+        }
+    )");
+
+    headerLayout->addWidget(titleLabel);
+    headerLayout->addStretch();
+    headerLayout->addWidget(closeBtn);
+
+    mainLayout->addWidget(headerWidget);
+
+    // 滚动区域
+    QScrollArea* scrollArea = new QScrollArea;
+    QWidget* contentWidget = new QWidget;
+    QVBoxLayout* contentLayout = new QVBoxLayout(contentWidget);
+    contentLayout->setSpacing(15);
+
+    // 获取并显示用户发布的商品
+    bool hasPosts = false;
+    for(const auto& post : posts) {
+        if(post.getOwner()->getUserID() == cur_user->getUserID()) {
+            hasPosts = true;
+            
+            // 创建商品卡片
+            QWidget* postCard = new QWidget;
+            postCard->setStyleSheet(R"(
+                QWidget {
+                    background: white;
+                    border-radius: 12px;
+                    padding: 16px;
+                    margin: 8px 0;
+                }
+                QWidget:hover {
+                    background: #FCFCFC;
+                    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+                }
+            )");
+
+            QHBoxLayout* cardLayout = new QHBoxLayout(postCard);
+            cardLayout->setContentsMargins(0, 0, 0, 0);
+            cardLayout->setSpacing(20);
+
+            // 商品图片
+            QLabel* imageLabel = new QLabel;
+            QString mainImage = post.getImages().empty() ?
+                                ":/default_item.jpg" : post.getMainImage();
+            QPixmap pixmap(mainImage);
+            pixmap = pixmap.scaled(120, 120, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            imageLabel->setPixmap(pixmap);
+            imageLabel->setStyleSheet(R"(
+                QLabel {
+                    border-radius: 8px;
+                    background: #F0F0F0;
+                    min-width: 120px;
+                    max-width: 120px;
+                    min-height: 120px;
+                    max-height: 120px;
+                }
+            )");
+            imageLabel->setScaledContents(true);
+            cardLayout->addWidget(imageLabel);
+
+            // 商品信息
+            QWidget* infoWidget = new QWidget;
+            QVBoxLayout* infoLayout = new QVBoxLayout(infoWidget);
+            infoLayout->setContentsMargins(0, 0, 0, 0);
+            infoLayout->setSpacing(8);
+
+            QLabel* titleLabel = new QLabel(post.getTitle());
+            titleLabel->setStyleSheet(R"(
+                font: bold 16px 'Microsoft YaHei';
+                color: #333333;
+            )");
+
+            QLabel* priceLabel = new QLabel(QString("¥%1").arg(post.getPrice(), 0, 'f', 2));
+            priceLabel->setStyleSheet(R"(
+                font: 18px 'Microsoft YaHei';
+                color: #FF4444;
+            )");
+
+            QLabel* timeLabel = new QLabel(QString("发布时间: %1").arg(
+                post.getPostTime().toString("yyyy-MM-dd hh:mm:ss")));
+            timeLabel->setStyleSheet(R"(
+                font: 12px 'Microsoft YaHei';
+                color: #666666;
+            )");
+
+            infoLayout->addWidget(titleLabel);
+            infoLayout->addWidget(priceLabel);
+            infoLayout->addWidget(timeLabel);
+            infoLayout->addStretch();
+
+            cardLayout->addWidget(infoWidget, 1);
+
+            // 操作按钮
+            QWidget* buttonWidget = new QWidget;
+            QVBoxLayout* buttonLayout = new QVBoxLayout(buttonWidget);
+            buttonLayout->setContentsMargins(0, 0, 0, 0);
+            buttonLayout->setSpacing(8);
+
+            QPushButton* editBtn = new QPushButton("✏️ 编辑");
+            QPushButton* deleteBtn = new QPushButton("🗑️ 删除");
+
+            editBtn->setStyleSheet(R"(
+                QPushButton {
+                    background: #28A745;
+                    color: white;
+                    border-radius: 8px;
+                    padding: 8px 16px;
+                    font: bold 12px 'Microsoft YaHei';
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    background: #218838;
+                }
+            )");
+
+            deleteBtn->setStyleSheet(R"(
+                QPushButton {
+                    background: #DC3545;
+                    color: white;
+                    border-radius: 8px;
+                    padding: 8px 16px;
+                    font: bold 12px 'Microsoft YaHei';
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    background: #C82333;
+                }
+            )");
+
+            connect(editBtn, &QPushButton::clicked, [this, post, dialog]() {
+                dialog->accept();
+                editItemPost(post);
+            });
+
+            connect(deleteBtn, &QPushButton::clicked, [this, post, dialog]() {
+                dialog->accept();
+                deleteItemPost(post);
+            });
+
+            buttonLayout->addWidget(editBtn);
+            buttonLayout->addWidget(deleteBtn);
+            buttonLayout->addStretch();
+
+            cardLayout->addWidget(buttonWidget);
+
+            contentLayout->addWidget(postCard);
+        }
+    }
+
+    if(!hasPosts) {
+        QLabel* emptyLabel = new QLabel("暂无发布的商品");
+        emptyLabel->setStyleSheet(R"(
+            font: 16px 'Microsoft YaHei';
+            color: #666666;
+            padding: 20px;
+        )");
+        emptyLabel->setAlignment(Qt::AlignCenter);
+        contentLayout->addWidget(emptyLabel);
+    }
+
+    contentLayout->addStretch();
+
+    scrollArea->setWidget(contentWidget);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setStyleSheet("QScrollArea { border: none; }");
+
+    mainLayout->addWidget(scrollArea);
+
+    // 连接关闭按钮
+    connect(closeBtn, &QPushButton::clicked, dialog, &QDialog::accept);
+
+    dialog->exec();
+}
+
+void MainWindow::toggleFavorite(const ItemPost& post) {
+    if (!cur_user) {
+        QMessageBox::warning(this, "提示", "请先登录！");
+        return;
+    }
+
+    // 查找商品并切换收藏状态
+    for (auto& itemPost : posts) {
+        if (itemPost.getTitle() == post.getTitle() && 
+            itemPost.getOwner()->getUserID() == post.getOwner()->getUserID() &&
+            itemPost.getPostTime() == post.getPostTime()) {
+            
+            if (itemPost.isFavoritedBy(cur_user)) {
+                // 取消收藏
+                itemPost.removeFromFavorites(cur_user);
+                QMessageBox::information(this, "收藏", "已取消收藏！");
+            } else {
+                // 添加收藏
+                itemPost.addToFavorites(cur_user);
+                QMessageBox::information(this, "收藏", "已添加到收藏！");
+            }
+            
+            // 保存数据并刷新界面
+            save_item();
+            refreshItemPosts();
+            return;
+        }
+    }
+    
+    QMessageBox::warning(this, "错误", "未找到商品！");
+}
+
+void MainWindow::showFavoritesDialog() {
+    if (!cur_user) {
+        QMessageBox::warning(this, "提示", "请先登录！");
+        return;
+    }
+
+    QDialog* dialog = new QDialog(this);
+    dialog->setWindowTitle("我的收藏");
+    dialog->setMinimumSize(900, 700);
+
+    QVBoxLayout* mainLayout = new QVBoxLayout(dialog);
+
+    // 标题栏
+    QWidget* headerWidget = new QWidget;
+    QHBoxLayout* headerLayout = new QHBoxLayout(headerWidget);
+
+    QLabel* titleLabel = new QLabel("我的收藏");
+    titleLabel->setStyleSheet(R"(
+        font: bold 20px 'Microsoft YaHei';
+        color: #333333;
+    )");
+
+    QPushButton* closeBtn = new QPushButton("关闭");
+    closeBtn->setStyleSheet(R"(
+        QPushButton {
+            background: #6C757D;
+            color: white;
+            border-radius: 15px;
+            padding: 8px 16px;
+            font: bold 14px 'Microsoft YaHei';
+        }
+        QPushButton:hover {
+            background: #5A6268;
+        }
+    )");
+
+    headerLayout->addWidget(titleLabel);
+    headerLayout->addStretch();
+    headerLayout->addWidget(closeBtn);
+
+    mainLayout->addWidget(headerWidget);
+
+    // 滚动区域
+    QScrollArea* scrollArea = new QScrollArea;
+    QWidget* contentWidget = new QWidget;
+    QVBoxLayout* contentLayout = new QVBoxLayout(contentWidget);
+    contentLayout->setSpacing(15);
+
+    // 获取并显示用户收藏的商品
+    bool hasFavorites = false;
+    for(const auto& post : posts) {
+        if(post.isFavoritedBy(cur_user)) {
+            hasFavorites = true;
+            
+            // 创建商品卡片
+            QWidget* postCard = new QWidget;
+            postCard->setStyleSheet(R"(
+                QWidget {
+                    background: white;
+                    border-radius: 12px;
+                    padding: 16px;
+                    margin: 8px 0;
+                }
+                QWidget:hover {
+                    background: #FCFCFC;
+                    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+                }
+            )");
+
+            QHBoxLayout* cardLayout = new QHBoxLayout(postCard);
+            cardLayout->setContentsMargins(0, 0, 0, 0);
+            cardLayout->setSpacing(20);
+
+            // 商品图片
+            QLabel* imageLabel = new QLabel;
+            QString mainImage = post.getImages().empty() ?
+                                ":/default_item.jpg" : post.getMainImage();
+            QPixmap pixmap(mainImage);
+            pixmap = pixmap.scaled(120, 120, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            imageLabel->setPixmap(pixmap);
+            imageLabel->setStyleSheet(R"(
+                QLabel {
+                    border-radius: 8px;
+                    background: #F0F0F0;
+                    min-width: 120px;
+                    max-width: 120px;
+                    min-height: 120px;
+                    max-height: 120px;
+                }
+            )");
+            imageLabel->setScaledContents(true);
+            cardLayout->addWidget(imageLabel);
+
+            // 商品信息
+            QWidget* infoWidget = new QWidget;
+            QVBoxLayout* infoLayout = new QVBoxLayout(infoWidget);
+            infoLayout->setContentsMargins(0, 0, 0, 0);
+            infoLayout->setSpacing(8);
+
+            QLabel* titleLabel = new QLabel(post.getTitle());
+            titleLabel->setStyleSheet(R"(
+                font: bold 16px 'Microsoft YaHei';
+                color: #333333;
+            )");
+
+            QLabel* priceLabel = new QLabel(QString("¥%1").arg(post.getPrice(), 0, 'f', 2));
+            priceLabel->setStyleSheet(R"(
+                font: 18px 'Microsoft YaHei';
+                color: #FF4444;
+            )");
+
+            QLabel* ownerLabel = new QLabel(QString("发布者: %1").arg(post.getOwner()->getUsername()));
+            ownerLabel->setStyleSheet(R"(
+                font: 12px 'Microsoft YaHei';
+                color: #666666;
+            )");
+
+            infoLayout->addWidget(titleLabel);
+            infoLayout->addWidget(priceLabel);
+            infoLayout->addWidget(ownerLabel);
+            infoLayout->addStretch();
+
+            cardLayout->addWidget(infoWidget, 1);
+
+            // 操作按钮
+            QWidget* buttonWidget = new QWidget;
+            QVBoxLayout* buttonLayout = new QVBoxLayout(buttonWidget);
+            buttonLayout->setContentsMargins(0, 0, 0, 0);
+            buttonLayout->setSpacing(8);
+
+            QPushButton* viewBtn = new QPushButton("👁️ 查看");
+            viewBtn->setStyleSheet(R"(
+                QPushButton {
+                    background: #007BFF;
+                    color: white;
+                    border-radius: 8px;
+                    padding: 8px 16px;
+                    font: bold 12px 'Microsoft YaHei';
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    background: #0056B3;
+                }
+            )");
+            
+            QPushButton* unfavoriteBtn = new QPushButton;
+            unfavoriteBtn->setFixedSize(32, 32);
+            unfavoriteBtn->setCursor(Qt::PointingHandCursor);
+            unfavoriteBtn->setText("❤️");
+            unfavoriteBtn->setToolTip("取消收藏");
+            unfavoriteBtn->setStyleSheet(R"(
+                QPushButton {
+                    background: #FFE6E6;
+                    border: 2px solid #FF4444;
+                    border-radius: 16px;
+                    font-size: 16px;
+                    color: #FF4444;
+                }
+                QPushButton:hover {
+                    background: #FFCCCC;
+                }
+            )");
+
+            connect(viewBtn, &QPushButton::clicked, [this, post, dialog]() {
+                dialog->accept();
+                showDetailPage(post);
+            });
+
+            connect(unfavoriteBtn, &QPushButton::clicked, [this, post, dialog]() {
+                dialog->accept();
+                toggleFavorite(post);
+            });
+
+            buttonLayout->addWidget(viewBtn);
+            buttonLayout->addWidget(unfavoriteBtn);
+            buttonLayout->addStretch();
+
+            cardLayout->addWidget(buttonWidget);
+
+            contentLayout->addWidget(postCard);
+        }
+    }
+
+    if(!hasFavorites) {
+        QLabel* emptyLabel = new QLabel("暂无收藏的商品");
+        emptyLabel->setStyleSheet(R"(
+            font: 16px 'Microsoft YaHei';
+            color: #666666;
+            padding: 20px;
+        )");
+        emptyLabel->setAlignment(Qt::AlignCenter);
+        contentLayout->addWidget(emptyLabel);
+    }
+
+    contentLayout->addStretch();
+
+    scrollArea->setWidget(contentWidget);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setStyleSheet("QScrollArea { border: none; }");
+
+    mainLayout->addWidget(scrollArea);
+
+    // 连接关闭按钮
+    connect(closeBtn, &QPushButton::clicked, dialog, &QDialog::accept);
+
+    dialog->exec();
+}
+
+// 新增：更新未读消息显示的函数
+void MainWindow::updateUnreadMessageDisplay() {
+    // 计算当前未读消息总数
+    int totalUnread = 0;
+    qDebug() << "更新未读消息显示，聊天室数量:" << activeChatRooms.size();
+    
+    for (auto room : activeChatRooms) {
+        int roomUnread = room->getUnreadCount(const_cast<User *>(cur_user));
+        totalUnread += roomUnread;
+        qDebug() << "聊天室未读数量:" << roomUnread;
+    }
+    
+    qDebug() << "总未读消息数量:" << totalUnread;
+    
+    // 如果当前在个人主页，更新未读消息按钮
+    if (stackWidget && stackWidget->currentIndex() == 0) {
+        // 查找未读消息按钮并更新
+        QWidget* page1Widget = stackWidget->widget(0);
+        if (page1Widget) {
+            // 查找统计卡片中的未读消息按钮
+            QList<QPushButton*> buttons = page1Widget->findChildren<QPushButton*>();
+            for (QPushButton* btn : buttons) {
+                if (btn->text().contains("收到私信")) {
+                    btn->setText(QString("收到私信\n%1").arg(totalUnread));
+                    qDebug() << "更新个人主页未读消息按钮:" << totalUnread;
+                    
+                    // 根据未读消息数量更新样式
+                    if (totalUnread > 0) {
+                        btn->setStyleSheet(R"(
+                            QPushButton {
+                                background: white;
+                                border-radius: 12px;
+                                padding: 24px 10px;
+                                border: 3px solid #FF4444;
+                                font: bold 22px 'Microsoft YaHei';
+                                color: #E74C3C;
+                            }
+                            QPushButton:hover {
+                                background: #FFF8F8;
+                                border-color: #FF6666;
+                                color: #C0392B;
+                            }
+                            QPushButton:pressed {
+                                background: #FFE8E8;
+                                border-color: #CC0000;
+                            }
+                        )");
+                    } else {
+                        btn->setStyleSheet(R"(
+                            QPushButton {
+                                background: white;
+                                border-radius: 12px;
+                                padding: 24px 10px;
+                                border: 2px solid #E8E8E8;
+                                font: bold 22px 'Microsoft YaHei';
+                                color: #333333;
+                            }
+                            QPushButton:hover {
+                                background: #F8F9FA;
+                                border-color: #D0D0D0;
+                            }
+                            QPushButton:pressed {
+                                background: #F0F0F0;
+                            }
+                        )");
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    
+    // 如果当前在私信页面，更新未读消息标签
+    if (stackWidget && stackWidget->currentIndex() == 2) {
+        QWidget* page3Widget = stackWidget->widget(2);
+        if (page3Widget) {
+            // 查找未读消息标签并更新
+            QList<QLabel*> labels = page3Widget->findChildren<QLabel*>();
+            for (QLabel* label : labels) {
+                if (label->text().contains("未读消息")) {
+                    label->setText(QString("未读消息: %1").arg(totalUnread));
+                    qDebug() << "更新私信页面未读消息标签:" << totalUnread;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+// 新增：评分系统方法实现
+void MainWindow::showRatingDialog(const User& targetUser)
+{
+    if (!cur_user) {
+        QMessageBox::warning(this, "提示", "请先登录！");
+        return;
+    }
+
+    // 检查是否已经评价过
+    if (targetUser.hasRatedBy(cur_user->getUserID())) {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this, 
+            "确认重新评价", 
+            QString("您已经评价过 %1，是否要重新评价？").arg(targetUser.getUsername()),
+            QMessageBox::Yes | QMessageBox::No
+        );
+        
+        if (reply != QMessageBox::Yes) {
+            return;
+        }
+    }
+
+    RatingDialog dialog(targetUser.getUsername(), this);
+    if (dialog.exec() == QDialog::Accepted) {
+        int rating = dialog.getRating();
+        QString comment = dialog.getComment();
+        
+        // 查找目标用户并添加评分
+        for (auto& user : users) {
+            if (user.getUserID() == targetUser.getUserID()) {
+                user.addRating(cur_user->getUserID(), rating, comment);
+                break;
+            }
+        }
+        
+        // 保存用户数据
+        saveUsers();
+        
+        QMessageBox::information(this, "评价成功", 
+            QString("您已成功为 %1 评分 %2 星！").arg(targetUser.getUsername()).arg(rating));
+    }
+}
+
+void MainWindow::showUserRatings(const User& user)
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle(QString("%1 的用户评价").arg(user.getUsername()));
+    dialog.setMinimumSize(600, 500);
+
+    QVBoxLayout* mainLayout = new QVBoxLayout(&dialog);
+    mainLayout->setContentsMargins(20, 15, 20, 15);
+
+    // 评分统计信息
+    QWidget* statsWidget = new QWidget;
+    QHBoxLayout* statsLayout = new QHBoxLayout(statsWidget);
+    statsLayout->setContentsMargins(0, 0, 0, 0);
+
+    QLabel* avgRatingLabel = new QLabel(QString("平均评分: %1").arg(user.getAverageRating(), 0, 'f', 1));
+    avgRatingLabel->setStyleSheet(R"(
+        font: bold 16px 'Microsoft YaHei';
+        color: #FF6B35;
+        padding: 10px;
+        background: #FFF8F0;
+        border-radius: 8px;
+    )");
+
+    QLabel* ratingLevelLabel = new QLabel(user.getRatingLevel());
+    ratingLevelLabel->setStyleSheet(R"(
+        font: bold 16px 'Microsoft YaHei';
+        color: #FF6B35;
+        padding: 10px;
+        background: #FFF8F0;
+        border-radius: 8px;
+    )");
+
+    QLabel* countLabel = new QLabel(QString("评价人数: %1").arg(user.getRatingCount()));
+    countLabel->setStyleSheet(R"(
+        font: bold 16px 'Microsoft YaHei';
+        color: #666666;
+        padding: 10px;
+        background: #F8F9FA;
+        border-radius: 8px;
+    )");
+
+    statsLayout->addWidget(avgRatingLabel);
+    statsLayout->addWidget(ratingLevelLabel);
+    statsLayout->addWidget(countLabel);
+    statsLayout->addStretch();
+
+    mainLayout->addWidget(statsWidget);
+
+    // 评价列表
+    QScrollArea* scrollArea = new QScrollArea;
+    QWidget* contentWidget = new QWidget;
+    QVBoxLayout* contentLayout = new QVBoxLayout(contentWidget);
+    contentLayout->setSpacing(10);
+
+    const QMap<QString, int>& ratings = user.getRatings();
+    const QMap<QString, QString>& comments = user.getComments();
+
+    if (ratings.isEmpty()) {
+        QLabel* emptyLabel = new QLabel("暂无用户评价");
+        emptyLabel->setStyleSheet(R"(
+            font: 16px 'Microsoft YaHei';
+            color: #666666;
+            padding: 20px;
+        )");
+        emptyLabel->setAlignment(Qt::AlignCenter);
+        contentLayout->addWidget(emptyLabel);
+    } else {
+        for (auto it = ratings.begin(); it != ratings.end(); ++it) {
+            QString raterID = it.key();
+            int rating = it.value();
+            QString comment = comments.value(raterID, "");
+
+            // 查找评价者用户名
+            QString raterName = "未知用户";
+            for (const auto& u : users) {
+                if (u.getUserID() == raterID) {
+                    raterName = u.getUsername();
+                    break;
+                }
+            }
+
+            // 创建评价卡片
+            QWidget* ratingCard = new QWidget;
+            ratingCard->setStyleSheet(R"(
+                QWidget {
+                    background: white;
+                    border: 1px solid #E0E0E0;
+                    border-radius: 8px;
+                    padding: 15px;
+                }
+                QWidget:hover {
+                    background: #F8F9FA;
+                }
+            )");
+
+            QVBoxLayout* cardLayout = new QVBoxLayout(ratingCard);
+            cardLayout->setContentsMargins(0, 0, 0, 0);
+            cardLayout->setSpacing(8);
+
+            // 评价者信息和评分
+            QHBoxLayout* headerLayout = new QHBoxLayout;
+            
+            QLabel* raterLabel = new QLabel(QString("评价者: %1").arg(raterName));
+            raterLabel->setStyleSheet("font: bold 14px 'Microsoft YaHei'; color: #333333;");
+            
+            QString stars;
+            for (int i = 0; i < rating; ++i) {
+                stars += "⭐";
+            }
+            QLabel* starsLabel = new QLabel(stars);
+            starsLabel->setStyleSheet("font: 16px; color: #FF6B35;");
+
+            headerLayout->addWidget(raterLabel);
+            headerLayout->addStretch();
+            headerLayout->addWidget(starsLabel);
+
+            cardLayout->addLayout(headerLayout);
+
+            // 评价内容
+            if (!comment.isEmpty()) {
+                QLabel* commentLabel = new QLabel(comment);
+                commentLabel->setStyleSheet(R"(
+                    font: 14px 'Microsoft YaHei';
+                    color: #666666;
+                    padding: 8px;
+                    background: #F8F9FA;
+                    border-radius: 4px;
+                )");
+                commentLabel->setWordWrap(true);
+                cardLayout->addWidget(commentLabel);
+            }
+
+            contentLayout->addWidget(ratingCard);
+        }
+    }
+
+    contentLayout->addStretch();
+
+    scrollArea->setWidget(contentWidget);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setStyleSheet("QScrollArea { border: none; }");
+
+    mainLayout->addWidget(scrollArea);
+
+    // 关闭按钮
+    QPushButton* closeBtn = new QPushButton("关闭");
+    closeBtn->setStyleSheet(R"(
+        QPushButton {
+            background: #6C757D;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 6px;
+            font: bold 14px 'Microsoft YaHei';
+        }
+        QPushButton:hover {
+            background: #5A6268;
+        }
+    )");
+
+    QHBoxLayout* buttonLayout = new QHBoxLayout;
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(closeBtn);
+
+    connect(closeBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
+
+    mainLayout->addLayout(buttonLayout);
+
+    dialog.exec();
 }

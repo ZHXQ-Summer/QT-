@@ -35,6 +35,9 @@ public:
     QWidget* createChatRoomCard(ChatRoom* room);
     QWidget* createChatListWidget();
     void highlightKeywords(QWidget* card, const QString& keyword);
+    // 新增：评分系统相关方法
+    void showRatingDialog(const User& targetUser);
+    void showUserRatings(const User& user);
 private slots:
     void onLoginClicked();
     void onRegisterClicked();
@@ -43,6 +46,16 @@ private slots:
     void showDetailPage(const ItemPost& post);// 显示单个商品的详情页
     void showPostEditor();
     void refreshItemPosts();
+    void showMyPosts();
+    // 新增：商品管理功能
+    void editItemPost(const ItemPost& post);
+    void deleteItemPost(const ItemPost& post);
+    void showItemManagementDialog();
+    // 新增：收藏功能
+    void toggleFavorite(const ItemPost& post);
+    void showFavoritesDialog();
+    // 新增：更新未读消息显示
+    void updateUnreadMessageDisplay();
 private:
     std::vector<ChatRoom*> activeChatRooms;
     void loadItemPosts(); // 用于重新加载数据

@@ -43,6 +43,7 @@ public:
     }
 signals:  // 新增信号声明
     void aboutToClose(ChatRoom* room);
+    void unreadCountChanged(); // 新增：未读消息数量变化信号
 protected:
     void showEvent(QShowEvent* event) override;//在调用show和raise时，会自动调用这个函数
     void closeEvent(QCloseEvent* event) override {
@@ -54,10 +55,12 @@ private slots:
     void sendMessage();//发送信息，按下发送按钮，或者回车，会自动调用这个函数
     void displayMessage(const ChatMessage& message);
     void saveHistory();
+    void saveUnreadState(); // 新增：保存未读状态
 
 private:
     User* currentUser;
     QString historyFilePath;
+    QString unreadStateFilePath; // 新增：未读状态文件路径
     int unreadCount1 = 0;  // user1的未读消息数
     int unreadCount2 = 0;  // user2的未读消息数
 
@@ -69,7 +72,9 @@ private:
     void setupUI();
     QString getCurrentTime() const;
     QString getHistoryFilePath() const;
+    QString getUnreadStateFilePath() const; // 新增：获取未读状态文件路径
     void updateTitle();  // 更新窗口标题，显示未读消息数
+    void loadUnreadState(); // 新增：加载未读状态
 
     friend void User::receiveNewChat(User* p, ChatRoom* q);
 

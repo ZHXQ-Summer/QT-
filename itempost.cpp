@@ -40,6 +40,13 @@ QJsonObject ItemPost::toJson() const
     }
     json["images"] = imagesArray;
 
+    // 新增：序列化收藏数据
+    QJsonArray favoritedArray;
+    for (const auto& userId : favoritedBy) {
+        favoritedArray.append(userId);
+    }
+    json["favoritedBy"] = favoritedArray;
+
     return json;
 }
 
@@ -76,6 +83,12 @@ ItemPost ItemPost::fromJson(const QJsonObject& json)
         post.images.push_back(image.toString());
     }
 
+    // 新增：反序列化收藏数据
+    QJsonArray favoritedArray = json["favoritedBy"].toArray();
+    for (const auto& userId : favoritedArray) {
+        post.favoritedBy.push_back(userId.toString());
+    }
+
     return post;
 }
 
@@ -108,4 +121,25 @@ void ItemPost::setMainImage(const QString& imagePath)
         images.erase(it);
         images.insert(images.begin(), imagePath);
     }
+}
+
+// 新增：收藏功能实现
+void ItemPost::addToFavorites(const User* user) {
+    if (user && std::find(favoritedBy.begin(), favoritedBy.end(), user->getUserID()) == favoritedBy.end()) {
+        favoritedBy.push_back(user->getUserID());
+    }
+}
+
+void ItemPost::removeFromFavorites(const User* user) {
+    if (user) {
+        auto it = std::find(favoritedBy.begin(), favoritedBy.end(), user->getUserID());
+        if (it != favoritedBy.end()) {
+            favoritedBy.erase(it);
+        }
+    }
+}
+
+bool ItemPost::isFavoritedBy(const User* user) const {
+    if (!user) return false;
+    return std::find(favoritedBy.begin(), favoritedBy.end(), user->getUserID()) != favoritedBy.end();
 }

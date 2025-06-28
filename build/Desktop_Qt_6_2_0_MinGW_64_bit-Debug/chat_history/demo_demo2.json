@@ -1,0 +1,14 @@
+[
+    {
+        "content": "你好，是哪位老师的课程？",
+        "receiver": "demo",
+        "sendTime": "2025-05-31T11:51:28",
+        "sender": "demo2"
+    },
+    {
+        "content": "111111",
+        "receiver": "demo2",
+        "sendTime": "2025-05-31T11:58:53",
+        "sender": "demo"
+    }
+]

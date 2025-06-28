@@ -7,7 +7,7 @@
 *****************************************************************************/
 
 #include <memory>
-#include "../../../../../qt-cs/QT-/EditDialog.h"
+#include "../../../EditDialog.h"
 #include <QtGui/qtextcursor.h>
 #include <QtCore/qbytearray.h>
 #include <QtCore/qmetatype.h>

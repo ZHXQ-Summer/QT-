@@ -1,0 +1,20 @@
+[
+    {
+        "content": "111",
+        "receiver": "demo",
+        "sendTime": "2025-05-31T15:14:37",
+        "sender": "demo101"
+    },
+    {
+        "content": "shenmeke",
+        "receiver": "demo",
+        "sendTime": "2025-05-31T15:14:40",
+        "sender": "demo101"
+    },
+    {
+        "content": "程设",
+        "receiver": "demo101",
+        "sendTime": "2025-05-31T15:15:52",
+        "sender": "demo"
+    }
+]

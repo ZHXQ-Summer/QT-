@@ -4,6 +4,7 @@
 #include<qjsonobject.h>
 #include"itempost.h"
 #include<vector>
+#include<QMap>
 class ChatRoom;
 class User {
 public:
@@ -20,6 +21,9 @@ public:
     QString getUserID() const;
     QDateTime getRegTime() const;
     QString getEmail() const;
+    int getpostcount()const;
+
+
     void selectUsername(QString a) ;
     void selectpwd(QString a) ;
     void selectEmail(QString a) ;
@@ -27,6 +31,15 @@ public:
     QString getAvatarPath() const;
     void setAvatarPath(const QString &path);
     bool checkPassword(const QString& inputPw) const;//登陆时检查密码
+
+    // 新增：评分系统相关方法
+    void addRating(const QString& raterID, int rating, const QString& comment);
+    double getAverageRating() const;
+    int getRatingCount() const;
+    QString getRatingLevel() const;
+    bool hasRatedBy(const QString& raterID) const;
+    QMap<QString, int> getRatings() const { return ratings; }
+    QMap<QString, QString> getComments() const { return comments; }
 
     //行为方法
     void releasePost(ItemPost* p);//发布商品
@@ -47,7 +60,10 @@ private:
     std::vector<ItemPost*> postPointer;//指向发布的商品
     std::vector<ChatRoom*> historyChat;//历史聊天记录
     std::vector<ItemPost*> myFavourite;//收藏
-
+    
+    // 新增：评分系统相关字段
+    QMap<QString, int> ratings;        // 评分者ID -> 评分(1-5)
+    QMap<QString, QString> comments;   // 评分者ID -> 评价内容
 
 };
 #endif // USER_H
