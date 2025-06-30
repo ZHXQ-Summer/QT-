@@ -47,3 +47,7 @@
 - **Windows**：Windows 10/11（64位）
 
 - **依赖库**：与开发环境一致的Qt运行时库
+### 视频链接
+- https://disk.pku.edu.cn/link/AAEC78BF257A5B4EE3BDB6C184E1461C1B
+文件名：35-演示.mp4
+有效期限：2025-07-30 14:18
